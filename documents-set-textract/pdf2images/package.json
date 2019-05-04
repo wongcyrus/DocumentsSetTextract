@@ -1,0 +1,21 @@
+{
+  "name": "pdf2images",
+  "version": "1.0.0",
+  "description": "S3 upload trigger to convert pdf to images",
+  "main": "app.js",
+  "repository": "https://github.com/awslabs/aws-sam-cli/tree/develop/samcli/local/init/templates/cookiecutter-aws-sam-hello-nodejs",
+  "author": "SAM CLI",
+  "license": "MIT",
+  "dependencies": {
+    "gs": "https://github.com/sina-masnadi/node-gs/tarball/master",
+    "pdf2img": "^0.5.0",
+    "pdf2img-lambda-friendly": "2.0.0"
+  },
+  "scripts": {
+    "test": "mocha tests/unit/"
+  },
+  "devDependencies": {
+    "chai": "^4.1.2",
+    "mocha": "^5.1.1"
+  }
+}
