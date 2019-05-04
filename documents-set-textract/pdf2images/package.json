@@ -7,8 +7,6 @@
   "author": "SAM CLI",
   "license": "MIT",
   "dependencies": {
-    "gs": "https://github.com/sina-masnadi/node-gs/tarball/master",
-    "pdf2img": "^0.5.0",
     "pdf2img-lambda-friendly": "2.0.0"
   },
   "scripts": {

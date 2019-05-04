@@ -33,30 +33,21 @@ Resources:
       Timeout: 900
       Policies: AWSLambdaExecute
       Layers:
-        - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}::${AWS::AccountId}:layer:${GhostscriptLayer}
-        - !Sub arn:${AWS::Partition}:lambda:${AWS::Region}::${AWS::AccountId}:layer:${GraphicsMagickLayer}
+        - !Ref GhostscriptLayer
+        # - !Ref GraphicsMagickLayer
       Events:
         ConvertPdfToImagesEvent:
           Type: S3
           Properties:
             Bucket: !Ref PdfBucket
             Events: s3:ObjectCreated:*
-  
-  GraphicsMagickLayer:
-    Type: AWS::Serverless::LayerVersion  
-    Properties:
-      ContentUri: layers/graphicsmagick.zip
-      CompatibleRuntimes:
-        - provided
-      LicenseInfo: 'Available under the MIT-0 license.'
-      RetentionPolicy: Delete            
 
   GhostscriptLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      ContentUri: layers/gs.zip
+      ContentUri: layers/lambda-ghostscript.zip
       CompatibleRuntimes:
-        - provided
+        - nodejs8.10
       LicenseInfo: 'Available under the MIT-0 license.'
       RetentionPolicy: Delete    
       

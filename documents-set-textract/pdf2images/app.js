@@ -5,39 +5,43 @@ const util = require('util');
 const s3 = new AWS.S3();
 const fs = require('fs');
 const path = require('path');
-const pdf2img = require('pdf2img');
-const gs = require('gs');
-// gs().executablePath(process.env['LAMBDA_TASK_ROOT']+'/GhostscriptLayer');
+const pdf2img = require('pdf2img-lambda-friendly');
 
-// process.env['PATH'] = process.env['PATH'] + ':' + process.env['LAMBDA_TASK_ROOT']+"/bin";
+
+// process.env['PATH'] = process.env['PATH'] + ':' + "/opt/gs";
+// process.env['LD_LIBRARY_PATH'] = process.env['LD_LIBRARY_PATH'] + ':' + "/opt/gs";
 
 exports.lambdaHandler = async(event, context) => {
-    console.log("Reading options from event:\n", util.inspect(event, { depth: 5 }));
+    // console.log("Reading options from event:\n", util.inspect(event, { depth: 5 }));
     const srcBucket = event.Records[0].s3.bucket.name;
     // Object key may have spaces or unicode non-ASCII characters.
     const srcKey = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, " "));
-    
+
     const params = {
-      Bucket: srcBucket,
-      Key: srcKey
+        Bucket: srcBucket,
+        Key: srcKey
     };
     const file_data = await getObject(params);
-    const filePath="/tmp/" + srcKey;
+    const filePath = "/tmp/" + srcKey;
     fs.writeFileSync(filePath, file_data.toString())
     const stats = fs.statSync(filePath);
     console.log('File Size in Bytes:- ' + stats.size);
+    // fs.readdirSync("ghostscript/bin/").forEach(file => {
+    //     console.log(file);
+    // });
     const info = await convert2images(filePath);
     console.log(info);
-        
+
+
     return { srcBucket, srcKey }
 };
 
 const getObject = (handle) => {
     return new Promise((resolve, reject) => {
-      s3.getObject(handle, (err, data) => {
-        if (err) reject(err)
-        else resolve(data.Body)
-      })
+        s3.getObject(handle, (err, data) => {
+            if (err) reject(err)
+            else resolve(data.Body)
+        })
     })
 };
 
