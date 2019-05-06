@@ -1,18 +1,12 @@
-// const axios = require('axios')
-// const url = 'http://checkip.amazonaws.com/';
 const AWS = require('aws-sdk');
-const util = require('util');
 const s3 = new AWS.S3();
 const fs = require('fs');
-const path = require('path');
-const pdf2img = require('pdf2img-lambda-friendly');
+const { promisify } = require('util');
+const pdf2img = require('./pdf2img');
 
-
-// process.env['PATH'] = process.env['PATH'] + ':' + "/opt/gs";
-// process.env['LD_LIBRARY_PATH'] = process.env['LD_LIBRARY_PATH'] + ':' + "/opt/gs";
+const readFile = promisify(fs.readFile);
 
 exports.lambdaHandler = async(event, context) => {
-    // console.log("Reading options from event:\n", util.inspect(event, { depth: 5 }));
     const srcBucket = event.Records[0].s3.bucket.name;
     // Object key may have spaces or unicode non-ASCII characters.
     const srcKey = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, " "));
@@ -21,41 +15,60 @@ exports.lambdaHandler = async(event, context) => {
         Bucket: srcBucket,
         Key: srcKey
     };
-    const file_data = await getObject(params);
-    const filePath = "/tmp/" + srcKey;
-    fs.writeFileSync(filePath, file_data.toString())
+
+    const destKeyPrefix = srcKey.replace(/\s/g, '_').replace(".pdf", "")
+    const outputdir = "/tmp/" + destKeyPrefix;
+    fs.existsSync(outputdir) || fs.mkdirSync(outputdir);
+    const filePath = "/tmp/" + srcKey.replace(/\s/g, '_');
+    await s3download(srcBucket, srcKey, filePath);
+
     const stats = fs.statSync(filePath);
     console.log('File Size in Bytes:- ' + stats.size);
-    // fs.readdirSync("ghostscript/bin/").forEach(file => {
-    //     console.log(file);
-    // });
-    const info = await convert2images(filePath);
-    console.log(info);
+    const results = await convert2images(filePath, outputdir);
+    console.log(results);
 
+    const s3Results = await Promise.all(results.message.map(async c => {
+        console.log(c);
+        let data = await readFile(c.path);
+        let key = c.path.replace("/tmp", "");
+        return await s3.putObject({ Bucket: srcBucket, Key: key, Body: data }).promise();
+    }));
 
-    return { srcBucket, srcKey }
+    return s3Results;
 };
 
-const getObject = (handle) => {
+const s3download = (bucketName, keyName, localDest) => {
+    if (typeof localDest == 'undefined') {
+        localDest = keyName;
+    }
+    let params = {
+        Bucket: bucketName,
+        Key: keyName
+    }
+    let file = fs.createWriteStream(localDest)
+
     return new Promise((resolve, reject) => {
-        s3.getObject(handle, (err, data) => {
-            if (err) reject(err)
-            else resolve(data.Body)
-        })
-    })
+        s3.getObject(params).createReadStream()
+            .on('end', () => {
+                return resolve();
+            })
+            .on('error', (error) => {
+                return reject(error);
+            }).pipe(file)
+    });
 };
 
-const convert2images = (filePath) => {
+const convert2images = (filePath, outputdir) => {
     pdf2img.setOptions({
-      type: 'jpg',                                // png or jpg, default jpg
-      density: 600,                               // default 600
-      outputdir: '/tmp/', // output folder, default null (if null given, then it will create folder name same as file name)
-      outputname: 'test',                         // output file name, dafault null (if null given, then it will create image name same as input name)
+        type: 'png', // png or jpg, default jpg
+        density: 600, // default 600
+        outputdir, // output folder, default null (if null given, then it will create folder name same as file name)
+        outputname: 'p', // output file name, dafault null (if null given, then it will create image name same as input name)
     });
     return new Promise((resolve, reject) => {
-        pdf2img.convert(filePath, (err, info) =>{
-          if (err) reject(err)
-          else resolve(info);
+        pdf2img.convert(filePath, (err, info) => {
+            if (err) reject(err)
+            else resolve(info);
         });
     })
 };

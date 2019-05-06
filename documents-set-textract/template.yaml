@@ -2,21 +2,20 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   documents-set-textract
-
-  Sample SAM Template for documents-set-textract
-  
-# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 3
-
+    Runtime: nodejs8.10
+    Timeout: 180
+    Handler: app.lambdaHandler
+    Environment:
+      Variables:
+        ImagesBucket: !Ref ImagesBucket
+        TextractBucket: !Ref TextractBucket
 Resources:
   HelloWorldFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
       CodeUri: hello-world/
-      Handler: app.lambdaHandler
-      Runtime: nodejs8.10
       Events:
         HelloWorld:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -28,13 +27,10 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: pdf2images/
-      Handler: app.lambdaHandler
-      Runtime: nodejs8.10
       Timeout: 900
       Policies: AWSLambdaExecute
       Layers:
         - !Ref GhostscriptLayer
-        # - !Ref GraphicsMagickLayer
       Events:
         ConvertPdfToImagesEvent:
           Type: S3
