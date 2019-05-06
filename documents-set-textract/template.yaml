@@ -28,6 +28,7 @@ Resources:
     Properties:
       CodeUri: pdf2images/
       Timeout: 900
+      MemorySize: 1024
       Policies: AWSLambdaExecute
       Layers:
         - !Ref GhostscriptLayer

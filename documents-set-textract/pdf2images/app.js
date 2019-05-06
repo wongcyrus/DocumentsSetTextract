@@ -30,7 +30,7 @@ exports.lambdaHandler = async(event, context) => {
     const s3Results = await Promise.all(results.message.map(async c => {
         console.log(c);
         let data = await readFile(c.path);
-        let key = c.path.replace("/tmp", "");
+        let key = c.path.replace("/tmp/", "");
         return await s3.putObject({ Bucket: srcBucket, Key: key, Body: data }).promise();
     }));
 
