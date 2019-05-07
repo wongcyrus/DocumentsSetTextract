@@ -1,13 +1,13 @@
 {
-  "name": "hello_world",
+  "name": "analyze-document-images",
   "version": "1.0.0",
-  "description": "hello world sample for NodeJS",
+  "description": "Analyze Document Images with Textract.",
   "main": "app.js",
-  "repository": "https://github.com/awslabs/aws-sam-cli/tree/develop/samcli/local/init/templates/cookiecutter-aws-sam-hello-nodejs",
+  "repository": "https://github.com/wongcyrus/DocumentsSetTextract/tree/master/documents-set-textract",
   "author": "SAM CLI",
   "license": "MIT",
   "dependencies": {
-    "axios": "^0.18.0"
+    "aws-sdk": "^2.450.0"
   },
   "scripts": {
     "test": "mocha tests/unit/"

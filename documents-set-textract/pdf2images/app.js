@@ -7,9 +7,9 @@ const pdf2img = require('./pdf2img');
 const readFile = promisify(fs.readFile);
 
 exports.lambdaHandler = async(event, context) => {
-    const srcBucket = event.Records[0].s3.bucket.name;
-    // Object key may have spaces or unicode non-ASCII characters.
-    const srcKey = decodeURIComponent(event.Records[0].s3.object.key.replace(/\+/g, " "));
+    console.log(JSON.stringify(event));
+    const srcBucket = event.bucket;
+    const srcKey = event.key;
 
     const params = {
         Bucket: srcBucket,
@@ -31,10 +31,12 @@ exports.lambdaHandler = async(event, context) => {
         console.log(c);
         let data = await readFile(c.path);
         let key = c.path.replace("/tmp/", "");
-        return await s3.putObject({ Bucket: srcBucket, Key: key, Body: data }).promise();
+        return await s3.putObject({ Bucket: process.env['ImagesBucket'], Key: key, Body: data }).promise();
     }));
+    console.log(s3Results);
+    const images = results.message.map(c => c.path.replace("/tmp/", ""));
 
-    return s3Results;
+    return { srcBucket, srcKey, images };
 };
 
 const s3download = (bucketName, keyName, localDest) => {

@@ -12,16 +12,29 @@ Globals:
         ImagesBucket: !Ref ImagesBucket
         TextractBucket: !Ref TextractBucket
 Resources:
-  HelloWorldFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  StartDocumentStateMachine:
+    Type: AWS::Serverless::Function
     Properties:
-      CodeUri: hello-world/
+      CodeUri: start-document-state-machine/
+      Policies: 
+        - AWSLambdaExecute
+        - arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess
+      Environment:
+        Variables:
+          StateMachineArn: !Ref DocumentStateMachine
       Events:
-        HelloWorld:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+        ConvertPdfToImagesEvent:
+          Type: S3
+          Role: !GetAtt StartDocumentStateMachineExecutionRole.Arn
           Properties:
-            Path: /hello
-            Method: get
+            Bucket: !Ref PdfBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                  -
+                    Name: "suffix"
+                    Value: ".pdf"
 
   ConvertPdfToImages:
     Type: AWS::Serverless::Function
@@ -32,12 +45,6 @@ Resources:
       Policies: AWSLambdaExecute
       Layers:
         - !Ref GhostscriptLayer
-      Events:
-        ConvertPdfToImagesEvent:
-          Type: S3
-          Properties:
-            Bucket: !Ref PdfBucket
-            Events: s3:ObjectCreated:*
 
   GhostscriptLayer:
     Type: AWS::Serverless::LayerVersion
@@ -47,6 +54,64 @@ Resources:
         - nodejs8.10
       LicenseInfo: 'Available under the MIT-0 license.'
       RetentionPolicy: Delete    
+
+  AnalyzeDocumentImages:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: analyze-document-images/
+      MemorySize: 1024
+      Policies: 
+        - AWSLambdaExecute
+        - arn:aws:iam::aws:policy/AmazonTextractFullAccess
+      
+  DocumentStatesExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - !Sub states.${AWS::Region}.amazonaws.com
+            Action: "sts:AssumeRole"
+      Path: "/"
+      Policies:
+        - PolicyName: StatesExecutionPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource: "*"
+
+  DocumentStateMachine:
+    Type: "AWS::StepFunctions::StateMachine"
+    Properties:
+      DefinitionString:
+        !Sub
+          - |-
+            {
+              "Comment": "Documents Set Textract State Machine",
+              "StartAt": "Convert PDF to Images",
+              "States": {
+                "Convert PDF to Images": {
+                  "Type": "Task",
+                  "Resource": "${ConvertPdfToImages}",
+                  "Next": "Analyze Document Images"
+                },
+                "Analyze Document Images": {
+                  "Type": "Task",
+                  "Resource": "${AnalyzeDocumentImages}",
+                  "End": true
+                }
+              }
+            }
+          - 
+            ConvertPdfToImages: !GetAtt [ ConvertPdfToImages, Arn ]
+            AnalyzeDocumentImages: !GetAtt [ AnalyzeDocumentImages, Arn ]
+      RoleArn: !GetAtt [ DocumentStatesExecutionRole, Arn ]
       
   PdfBucket:
     Type: AWS::S3::Bucket
@@ -57,16 +122,4 @@ Resources:
   TextractBucket:
     Type: AWS::S3::Bucket
     
-Outputs:
-  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
-  # Find out more about other implicit resources you can reference within SAM
-  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  HelloWorldApi:
-    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
-  HelloWorldFunction:
-    Description: "Hello World Lambda Function ARN"
-    Value: !GetAtt HelloWorldFunction.Arn
-  HelloWorldFunctionIamRole:
-    Description: "Implicit IAM Role created for Hello World function"
-    Value: !GetAtt HelloWorldFunctionRole.Arn
+
