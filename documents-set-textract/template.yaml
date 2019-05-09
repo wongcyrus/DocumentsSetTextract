@@ -211,9 +211,9 @@ Resources:
                             "Type": "Task",
                             "Resource": "${Iterator}",
                             "ResultPath": "$.iterator",
-                            "Next": "Is Count Reached"
+                            "Next": "Is Count Reached Or Succeeded"
                         },
-                        "Is Count Reached": {
+                        "Is Count Reached Or Succeeded": {
                             "Type": "Choice",
                             "Choices": [
                                 {
