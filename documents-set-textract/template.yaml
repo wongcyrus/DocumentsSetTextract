@@ -1,5 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
+Parameters: 
+  NumberOfIteration: 
+    Type: Number
+    Default: 30
 Description: >
   documents-set-textract
 Globals:
@@ -73,7 +77,12 @@ Resources:
       Policies: 
         - AWSLambdaExecute
         - arn:aws:iam::aws:policy/AmazonTextractFullAccess
-
+        
+  Iterator:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: iterator/
+      
   TextractCompletedTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -102,11 +111,6 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonTextractFullAccess
       Layers:
         - !Ref AwsSdkLayer     
-      Events:        
-        TextractCompletedTopic:
-          Type: SNS
-          Properties:
-            Topic: !Ref TextractCompletedTopic
         
   TextractExecutionRole:
     Type: AWS::IAM::Role
@@ -185,13 +189,55 @@ Resources:
                         }
                      },
                      {
-                       "StartAt": "StartDocumentAnalysis",
+                       "StartAt": "Start Document Analysis",
                        "States": {
-                         "StartDocumentAnalysis": {
+                         "Start Document Analysis": {
                             "Type": "Task",
                             "Resource": "${StartDocumentAnalysis}",
+                            "Next": "Configure Count"
+                         },
+                       "Configure Count": {
+                            "Type": "Pass",
+                            "InputPath": "$.JobId",
+                            "Result": {
+                                "count": ${NumberOfIteration},
+                                "index": 0,
+                                "step": 1
+                            },
+                            "ResultPath": "$.iterator",
+                            "Next": "Iterator"
+                        },
+                        "Iterator": {
+                            "Type": "Task",
+                            "Resource": "${Iterator}",
+                            "ResultPath": "$.iterator",
+                            "Next": "Is Count Reached"
+                        },
+                        "Is Count Reached": {
+                            "Type": "Choice",
+                            "Choices": [
+                                {
+                                    "Variable": "$.iterator.continue",
+                                    "BooleanEquals": true,
+                                    "Next": "Get Document Analysis"
+                                }
+                            ],
+                            "Default": "Done"
+                        },
+                        "Get Document Analysis": {
+                            "Type": "Task",
+                            "Resource": "${GetDocumentAnalysis}",
+                            "Next": "Wait 10 seconds"
+                        },
+                        "Wait 10 seconds": {
+                          "Type": "Wait",
+                          "Seconds": 10,
+                          "Next": "Iterator"
+                        },
+                        "Done": {
+                            "Type": "Pass",
                             "End": true
-                         }
+                        }            
                        }
                      }
                   ]
@@ -203,6 +249,8 @@ Resources:
             StartDocumentAnalysis: !GetAtt [ StartDocumentAnalysis, Arn ]
             ConvertPdfToImages: !GetAtt [ ConvertPdfToImages, Arn ]
             AnalyzeDocumentImages: !GetAtt [ AnalyzeDocumentImages, Arn ]
+            GetDocumentAnalysis: !GetAtt [ GetDocumentAnalysis, Arn ]
+            Iterator: !GetAtt [ Iterator, Arn ]
       RoleArn: !GetAtt [ DocumentStatesExecutionRole, Arn ]
       
   PdfBucket:

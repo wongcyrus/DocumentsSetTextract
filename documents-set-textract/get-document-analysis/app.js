@@ -4,15 +4,15 @@ const s3 = new AWS.S3();
 
 exports.lambdaHandler = async(event, context) => {
     console.log(JSON.stringify(event));
-
-    const getResult = JSON.parse(event.Records[0].Sns.Message);
-
     const params = {
-        JobId: getResult.JobId,
+        JobId: event.JobId,
         /* required */
         MaxResults: '1000'
     };
     const result = await textract.getDocumentAnalysis(params).promise();
+    
+    if(result.JobStatus === "SUCCEEDED")
+        event.iterator.continue = false;
     console.log(result);
     return event;
 };
