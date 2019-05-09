@@ -25,7 +25,6 @@ Resources:
       Events:
         ConvertPdfToImagesEvent:
           Type: S3
-          Role: !GetAtt StartDocumentStateMachineExecutionRole.Arn
           Properties:
             Bucket: !Ref PdfBucket
             Events: s3:ObjectCreated:*
@@ -49,20 +48,88 @@ Resources:
   GhostscriptLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
-      ContentUri: layers/lambda-ghostscript.zip
+      ContentUri: layers/lambda-ghostscript
       CompatibleRuntimes:
         - nodejs8.10
       LicenseInfo: 'Available under the MIT-0 license.'
       RetentionPolicy: Delete    
 
+  AwsSdkLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: layers/aws-sdk
+      CompatibleRuntimes:
+        - nodejs8.10
+      LicenseInfo: 'Available under the MIT-0 license.'
+      RetentionPolicy: Delete   
+      
   AnalyzeDocumentImages:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: analyze-document-images/
       MemorySize: 1024
+      Layers:
+        - !Ref AwsSdkLayer         
       Policies: 
         - AWSLambdaExecute
         - arn:aws:iam::aws:policy/AmazonTextractFullAccess
+
+  TextractCompletedTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: "TextractCompletionTopic"
+      
+  StartDocumentAnalysis:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: start-document-analysis/
+      Policies: 
+        - AWSLambdaExecute
+        - arn:aws:iam::aws:policy/AmazonTextractFullAccess
+      Layers:
+        - !Ref AwsSdkLayer        
+      Environment:
+        Variables:
+          TextractCompletedTopicArn: !Ref TextractCompletedTopic
+          TextractExecutionRoleArn: !GetAtt [ TextractExecutionRole, Arn ] 
+          
+  GetDocumentAnalysis:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: get-document-analysis/  
+      Policies: 
+        - AWSLambdaExecute
+        - arn:aws:iam::aws:policy/AmazonTextractFullAccess
+      Layers:
+        - !Ref AwsSdkLayer     
+      Events:        
+        TextractCompletedTopic:
+          Type: SNS
+          Properties:
+            Topic: !Ref TextractCompletedTopic
+        
+  TextractExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - textract.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - SNS:Publish
+            Resource: !Ref TextractCompletedTopic
       
   DocumentStatesExecutionRole:
     Type: "AWS::IAM::Role"
@@ -86,6 +153,8 @@ Resources:
                   - "lambda:InvokeFunction"
                 Resource: "*"
 
+
+      
   DocumentStateMachine:
     Type: "AWS::StepFunctions::StateMachine"
     Properties:
@@ -94,21 +163,44 @@ Resources:
           - |-
             {
               "Comment": "Documents Set Textract State Machine",
-              "StartAt": "Convert PDF to Images",
+              "StartAt": "Analyze Document",
               "States": {
-                "Convert PDF to Images": {
-                  "Type": "Task",
-                  "Resource": "${ConvertPdfToImages}",
-                  "Next": "Analyze Document Images"
-                },
-                "Analyze Document Images": {
-                  "Type": "Task",
-                  "Resource": "${AnalyzeDocumentImages}",
-                  "End": true
+                  "Analyze Document": {
+                    "Type": "Parallel",
+                    "End": true,
+                    "Branches": [
+                      {
+                        "StartAt": "Convert PDF to Images",
+                        "States": {
+                          "Convert PDF to Images": {
+                            "Type": "Task",
+                            "Resource": "${ConvertPdfToImages}",
+                            "Next": "Analyze Document Images"
+                          },
+                          "Analyze Document Images": {
+                            "Type": "Task",
+                            "Resource": "${AnalyzeDocumentImages}",
+                            "End": true
+                          }
+                        }
+                     },
+                     {
+                       "StartAt": "StartDocumentAnalysis",
+                       "States": {
+                         "StartDocumentAnalysis": {
+                            "Type": "Task",
+                            "Resource": "${StartDocumentAnalysis}",
+                            "End": true
+                         }
+                       }
+                     }
+                  ]
                 }
               }
+              
             }
           - 
+            StartDocumentAnalysis: !GetAtt [ StartDocumentAnalysis, Arn ]
             ConvertPdfToImages: !GetAtt [ ConvertPdfToImages, Arn ]
             AnalyzeDocumentImages: !GetAtt [ AnalyzeDocumentImages, Arn ]
       RoleArn: !GetAtt [ DocumentStatesExecutionRole, Arn ]

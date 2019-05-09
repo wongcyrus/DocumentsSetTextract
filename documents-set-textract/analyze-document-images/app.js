@@ -1,4 +1,4 @@
-const AWS = require('aws-sdk');
+const AWS = require('/opt/node_modules/aws-sdk');
 const textract = new AWS.Textract();
 const s3 = new AWS.S3();
 

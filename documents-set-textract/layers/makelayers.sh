@@ -1,1 +1,0 @@
-zip -r lambda-ghostscript.zip ./lambda-ghostscript
