@@ -4,17 +4,24 @@ Parameters:
   NumberOfIteration: 
     Type: Number
     Default: 30
+  ProcessEachImage:
+    Type: String
+    Default: true
+    AllowedValues: 
+      - true
+      - false
 Description: >
   documents-set-textract
 Globals:
   Function:
     Runtime: nodejs8.10
-    Timeout: 180
+    Timeout: 300
     Handler: app.lambdaHandler
     Environment:
       Variables:
         ImagesBucket: !Ref ImagesBucket
         TextractBucket: !Ref TextractBucket
+        ProcessEachImage: !Ref ProcessEachImage
 Resources:
   StartDocumentStateMachine:
     Type: AWS::Serverless::Function
@@ -111,6 +118,14 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonTextractFullAccess
       Layers:
         - !Ref AwsSdkLayer     
+
+  JsonToExcel:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: json-to-excel/  
+      MemorySize: 2048
+      Policies: 
+        - AWSLambdaExecute
         
   TextractExecutionRole:
     Type: AWS::IAM::Role
@@ -157,8 +172,6 @@ Resources:
                   - "lambda:InvokeFunction"
                 Resource: "*"
 
-
-      
   DocumentStateMachine:
     Type: "AWS::StepFunctions::StateMachine"
     Properties:
@@ -169,43 +182,28 @@ Resources:
               "Comment": "Documents Set Textract State Machine",
               "StartAt": "Analyze Document",
               "States": {
-                  "Analyze Document": {
-                    "Type": "Parallel",
-                    "End": true,
-                    "Branches": [
-                      {
-                        "StartAt": "Convert PDF to Images",
-                        "States": {
-                          "Convert PDF to Images": {
-                            "Type": "Task",
-                            "Resource": "${ConvertPdfToImages}",
-                            "Next": "Analyze Document Images"
+                "Analyze Document": {
+                  "Type": "Parallel",
+                  "Next": "Json To Excel",
+                  "Branches": [
+                   {
+                     "StartAt": "Start Document Analysis",
+                     "States": {
+                       "Start Document Analysis": {
+                          "Type": "Task",
+                          "Resource": "${StartDocumentAnalysis}",
+                          "Next": "Configure Count"
+                       },
+                      "Configure Count": {
+                          "Type": "Pass",
+                          "InputPath": "$.JobId",
+                          "Result": {
+                              "count": ${NumberOfIteration},
+                              "index": 0,
+                              "step": 1
                           },
-                          "Analyze Document Images": {
-                            "Type": "Task",
-                            "Resource": "${AnalyzeDocumentImages}",
-                            "End": true
-                          }
-                        }
-                     },
-                     {
-                       "StartAt": "Start Document Analysis",
-                       "States": {
-                         "Start Document Analysis": {
-                            "Type": "Task",
-                            "Resource": "${StartDocumentAnalysis}",
-                            "Next": "Configure Count"
-                         },
-                       "Configure Count": {
-                            "Type": "Pass",
-                            "InputPath": "$.JobId",
-                            "Result": {
-                                "count": ${NumberOfIteration},
-                                "index": 0,
-                                "step": 1
-                            },
-                            "ResultPath": "$.iterator",
-                            "Next": "Iterator"
+                          "ResultPath": "$.iterator",
+                          "Next": "Iterator"
                         },
                         "Iterator": {
                             "Type": "Task",
@@ -222,7 +220,7 @@ Resources:
                                     "Next": "Get Document Analysis"
                                 }
                             ],
-                            "Default": "Done"
+                            "Default": "Finish Document Analysis"
                         },
                         "Get Document Analysis": {
                             "Type": "Task",
@@ -234,16 +232,66 @@ Resources:
                           "Seconds": 10,
                           "Next": "Iterator"
                         },
-                        "Done": {
+                        "Finish Document Analysis": {
                             "Type": "Pass",
+                            "OutputPath": "$.resultKey", 
                             "End": true
                         }            
-                       }
                      }
+                    },      
+                    {
+                      "StartAt": "Convert PDF to Images",
+                      "States": {
+                        "Convert PDF to Images": {
+                          "Type": "Task",
+                          "Resource": "${ConvertPdfToImages}",
+                          "Next": "Set Process Each Image Variable"
+                        },
+                        "Set Process Each Image Variable": {
+                          "Type": "Pass",
+                          "Result": ${ProcessEachImage},
+                          "ResultPath": "$.ProcessEachImage",
+                          "Next": "Analyze Document Each Image"
+                        },
+                        "Analyze Document Each Image": {
+                          "Type": "Choice",
+                          "Choices": [
+                              {
+                                  "Variable": "$.ProcessEachImage",
+                                  "BooleanEquals": true,
+                                  "Next": "Process Document Images"
+                              }
+                          ],
+                          "Default": "Just Extract Images"
+                        },
+                        "Process Document Images": {
+                          "Type": "Task",
+                          "Resource": "${AnalyzeDocumentImages}",
+                          "End": true,
+                          "Retry": [ {
+                              "ErrorEquals": [ "ProvisionedThroughputExceededException"],
+                              "IntervalSeconds": 10,
+                              "BackoffRate": 2.0,
+                              "MaxAttempts": 3
+                          }]
+                        },
+                        "Just Extract Images": {
+                            "Type": "Pass",
+                            "End": true
+                        }     
+                      }
+                   }
                   ]
+                },
+                "Json To Excel": {
+                  "Type": "Task",
+                  "Resource": "${JsonToExcel}",
+                  "Next": "SuccessState"
+                },
+                "SuccessState": {
+                  "Type": "Succeed"
                 }
               }
-              
             }
           - 
             StartDocumentAnalysis: !GetAtt [ StartDocumentAnalysis, Arn ]
@@ -251,6 +299,7 @@ Resources:
             AnalyzeDocumentImages: !GetAtt [ AnalyzeDocumentImages, Arn ]
             GetDocumentAnalysis: !GetAtt [ GetDocumentAnalysis, Arn ]
             Iterator: !GetAtt [ Iterator, Arn ]
+            JsonToExcel: !GetAtt [ JsonToExcel, Arn ]
       RoleArn: !GetAtt [ DocumentStatesExecutionRole, Arn ]
       
   PdfBucket:

@@ -36,7 +36,7 @@ exports.lambdaHandler = async(event, context) => {
     console.log(s3Results);
     const images = results.message.map(c => c.path.replace("/tmp/", ""));
 
-    return { srcBucket, srcKey, images };
+    return { srcBucket, srcKey, images};
 };
 
 const s3download = (bucketName, keyName, localDest) => {

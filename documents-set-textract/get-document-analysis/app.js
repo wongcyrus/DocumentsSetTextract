@@ -15,12 +15,16 @@ exports.lambdaHandler = async(event, context) => {
     console.log(acc);
     if (acc[0].JobStatus === "SUCCEEDED") {
         event.iterator.continue = false;
-        
+
         let result = {};
         result.DocumentMetadata = acc[0].DocumentMetadata;
         const reducer = (accumulator, currentValue) => accumulator.concat(currentValue);
         result.Blocks = acc.map(c => c.Blocks).reduce(reducer, []);
-        console.log(JSON.stringify(result));
+
+        const data = JSON.stringify(result);
+        const resultKey = event.key.replace(".pdf", ".json");
+        await s3.putObject({ Bucket: process.env['TextractBucket'], Key: resultKey, Body: data }).promise();
+        event.resultKey = { resultKey };
     }
     return event;
 };

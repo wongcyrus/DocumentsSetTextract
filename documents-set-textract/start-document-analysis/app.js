@@ -27,6 +27,7 @@ exports.lambdaHandler = async(event, context) => {
     console.log(params);
     const result = await textract.startDocumentAnalysis(params).promise();
     console.log(result);
+    result.key = key;
     return result;
 
 };
