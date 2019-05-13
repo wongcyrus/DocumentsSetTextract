@@ -119,6 +119,14 @@ Resources:
       Layers:
         - !Ref AwsSdkLayer     
 
+  GeneratePageKeyValuePair:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: generate-page-key-value-pair/  
+      MemorySize: 2048
+      Policies: 
+        - AWSLambdaExecute
+        
   JsonToExcel:
     Type: AWS::Serverless::Function
     Properties:
@@ -126,7 +134,7 @@ Resources:
       MemorySize: 2048
       Policies: 
         - AWSLambdaExecute
-        
+
   TextractExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -184,7 +192,7 @@ Resources:
               "States": {
                 "Analyze Document": {
                   "Type": "Parallel",
-                  "Next": "Json To Excel",
+                  "Next": "Generate Page Key Value Pair",
                   "Branches": [
                    {
                      "StartAt": "Start Document Analysis",
@@ -283,6 +291,11 @@ Resources:
                    }
                   ]
                 },
+                "Generate Page Key Value Pair": {
+                  "Type": "Task",
+                  "Resource": "${GeneratePageKeyValuePair}",
+                  "Next": "Json To Excel"
+                },
                 "Json To Excel": {
                   "Type": "Task",
                   "Resource": "${JsonToExcel}",
@@ -300,6 +313,7 @@ Resources:
             GetDocumentAnalysis: !GetAtt [ GetDocumentAnalysis, Arn ]
             Iterator: !GetAtt [ Iterator, Arn ]
             JsonToExcel: !GetAtt [ JsonToExcel, Arn ]
+            GeneratePageKeyValuePair: !GetAtt [ GeneratePageKeyValuePair, Arn ]
       RoleArn: !GetAtt [ DocumentStatesExecutionRole, Arn ]
       
   PdfBucket:

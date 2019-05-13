@@ -1,4 +1,11 @@
+cd layers/aws-sdk
+npm install
+cd ..
+cd ..
 cd analyze-document-images
+npm install
+cd ..
+cd generate-page-key-value-pair
 npm install
 cd ..
 cd get-document-analysis

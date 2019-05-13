@@ -1,98 +1,67 @@
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3();
 const fs = require('fs');
+const { promisify } = require('util');
+const readFile = promisify(fs.readFile);
+const xl = require('excel4node');
 
 exports.lambdaHandler = async(event, context) => {
-    // console.log(JSON.stringify(event));
-    const key = event[0].resultKey;
+    const key = event[0].keyValuePairJson;
     const filePath = "/tmp/" + key;
     await s3download(process.env['TextractBucket'], key, filePath);
 
     const rawdata = fs.readFileSync(filePath);
-    const textractResults = JSON.parse(rawdata);
+    const keyValuePairJson = JSON.parse(rawdata);
 
-    const { blockMap, keyMap, valueMap } = getKeyValueMap(textractResults);
-    console.log(valueMap.keys().next());
-    const keyValues= getKeyValueRelationship(keyMap, blockMap, valueMap);
-    console.log(keyValues);
+    const wb = new xl.Workbook();
+    const valueWorkSheet = wb.addWorksheet('Value');
+    const conflidenceWorkSheet = wb.addWorksheet('Confidence');
 
+    const keys = Array.from(new Set(keyValuePairJson.map(c => c.key))).sort();
+    const pages = Array.from(new Set(keyValuePairJson.map(c => c.page))).sort();
+    console.log(keys);
+    console.log(pages);
+
+    for (let x = 0; x < keys.length; x++) {
+        valueWorkSheet.cell(1, x + 1).string(keys[x]);
+        conflidenceWorkSheet.cell(1, x + 1).string(keys[x]);
+    }
+
+    for (let x = 0; x < keys.length; x++)
+        for (let y = 0; y < pages.length; y++) {
+            let data = keyValuePairJson.filter(c => c.page == pages[y] && c.key === keys[x]);
+            if (data.length === 1) {
+                valueWorkSheet.cell(y + 2, x + 1).string(data[0].val);
+                conflidenceWorkSheet.cell(y + 2, x + 1).number(data[0].valueConfidence);
+            }
+        }
+
+    const excelKey = event[0].keyValuePairJson.replace(".json", ".xlsx");
+    const excelFilePath = '/tmp/' + excelKey;
+    await writeExcel(wb, excelFilePath);
+
+    const data = await readFile(excelFilePath);
+    await s3.putObject({
+        Bucket: process.env['TextractBucket'],
+        Key: excelKey,
+        Body: data
+    }).promise();
+    event[0].excelKey = excelKey;
     return event;
 };
 
-const concat = (x, y) =>
-    x.concat(y)
-
-const findValueBlock = (keyBlock, valueMap) => {
-    let valueBlock;
-    if (keyBlock.Relationships) {
-        valueBlock = keyBlock.Relationships
-            .filter(relationship => relationship.Type === "VALUE")
-            .map(relationship => relationship.Ids)
-            .reduce(concat, [])
-            .map(id => valueMap.get(id))
-            .reduce(concat, []);
-        return valueBlock[0];
-    }
-    return valueBlock;
-}
-
-const getText = (result, blockMap) => {
-    let text = "";
-    if (result && result.Relationships !== undefined) {
-        const blocks = result.Relationships
-            .filter(r => r['Type'] == 'CHILD')
-            .map(relationship =>
-                relationship.Ids.map(id => blockMap.get(id))
-            ).reduce(concat, []);
-        text += blocks.filter(b => b.BlockType === "WORD")
-            .reduce((acc, item) => acc + " " + item.Text, "")
-        text += blocks.filter(b => b.BlockType === "SELECTION_ELEMENT" && b.SelectionStatus == 'SELECTED')
-            .reduce((acc, item) => acc + "X ", "")
-    }
-    return text.trim();
-}
-const getKeyValueRelationship = (keyMap, blockMap, valueMap) => {
-    return Array.from(keyMap.keys())
-        .map(blockId => { return { blockId: blockId, keyBlock: keyMap.get(blockId) } })
-        .map(c => {
-            return { blockId: c.blockId, keyBlock: c.keyBlock, valueBlock: findValueBlock(c.keyBlock, valueMap) }
-        })
-        .map(c => {
-            return {
-                key: getText(c.keyBlock, blockMap),
-                val: getText(c.valueBlock, blockMap),
-                keyConfidence: c.keyBlock.Confidence,
-                valueConfidence: c.valueBlock.Confidence,
-                page: c.keyBlock.Page
-            }
-        })
-        .filter(c => c.key !== "");
-}
-
-
-const getKeyValueMap = textractResults => {
-    const blocks = textractResults.Blocks;
-
-    const blockMap = blocks.map(block => { return { id: block.Id, block } })
-        .reduce((map, obj) => {
-            map.set(obj.id, obj.block)
-            return map;
-        }, new Map());
-
-    const { keyMap, valueMap } = blocks.map(block => { return { id: block.Id, block } })
-        .filter(b => b.block.BlockType === "KEY_VALUE_SET")
-        .reduce((map, obj) => {
-            if (obj.block['EntityTypes'].includes('KEY')) {
-                map.keyMap.set(obj.id, obj.block);
+const writeExcel = (workbook, filePath) => {
+    return new Promise((resolve, reject) => {
+        workbook.write(filePath, (err, stats) => {
+            if (err) {
+                return reject(err);
             }
             else {
-                map.valueMap.set(obj.id, obj.block);
+                return resolve(stats); // Prints out an instance of a node.js fs.Stats object
             }
-            return map;
-        }, { keyMap: new Map(), valueMap: new Map() });
-    return { blockMap, keyMap, valueMap };
+        });
+    });
 }
-
 
 const s3download = (bucketName, keyName, localDest) => {
     if (typeof localDest == 'undefined') {
