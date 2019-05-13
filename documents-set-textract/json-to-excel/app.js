@@ -14,29 +14,21 @@ exports.lambdaHandler = async(event, context) => {
     const keyValuePairJson = JSON.parse(rawdata);
 
     const wb = new xl.Workbook();
-    const valueWorkSheet = wb.addWorksheet('Value');
-    const conflidenceWorkSheet = wb.addWorksheet('Confidence');
+    const documentValueWorkSheet = wb.addWorksheet('DocumentValue');
+    const documentConflidenceWorkSheet = wb.addWorksheet('DocumentConfidence');
+    const pageValueWorkSheet = wb.addWorksheet('PageValue');
+    const pageConflidenceWorkSheet = wb.addWorksheet('PageConfidence');
 
     const keys = Array.from(new Set(keyValuePairJson.map(c => c.key))).sort();
     const pages = Array.from(new Set(keyValuePairJson.map(c => c.page))).sort();
-    console.log(keys);
-    console.log(pages);
+    // console.log(keys);
+    // console.log(pages);
+    // console.log(keyValuePairJson);
 
-    for (let x = 0; x < keys.length; x++) {
-        valueWorkSheet.cell(1, x + 1).string(keys[x]);
-        conflidenceWorkSheet.cell(1, x + 1).string(keys[x]);
-    }
+    popularPageSheet(pageValueWorkSheet, pageConflidenceWorkSheet, keys, pages, keyValuePairJson);
+    popularDocumentSheet(documentValueWorkSheet, documentConflidenceWorkSheet, keys, pages, keyValuePairJson);
 
-    for (let x = 0; x < keys.length; x++)
-        for (let y = 0; y < pages.length; y++) {
-            let data = keyValuePairJson.filter(c => c.page == pages[y] && c.key === keys[x]);
-            if (data.length === 1) {
-                valueWorkSheet.cell(y + 2, x + 1).string(data[0].val);
-                conflidenceWorkSheet.cell(y + 2, x + 1).number(data[0].valueConfidence);
-            }
-        }
-
-    const excelKey = event[0].keyValuePairJson.replace(".json", ".xlsx");
+    const excelKey = event[0].resultKey.replace(".json", ".xlsx");
     const excelFilePath = '/tmp/' + excelKey;
     await writeExcel(wb, excelFilePath);
 
@@ -49,6 +41,57 @@ exports.lambdaHandler = async(event, context) => {
     event[0].excelKey = excelKey;
     return event;
 };
+
+const getDocumentPairs = (keyValuePairJson, pages) => {
+    let individualKeyValue = new Map();
+    let individualConfidenceValue = new Map();
+    let documentValuePairs = [];
+    let documentConfidencePairs = [];
+    for (let y = 0; y < pages.length; y++) {
+        let kvs = keyValuePairJson.filter(c => c.page === pages[y]);
+        if (kvs.map(c => c.key).some(key => individualKeyValue.has(key))) {
+            documentValuePairs.push(individualKeyValue);
+            documentConfidencePairs.push(individualConfidenceValue);
+            individualKeyValue = new Map();
+            individualConfidenceValue = new Map();
+        }
+        kvs.map(c => individualKeyValue.set(c.key, c.val));
+        kvs.map(c => individualConfidenceValue.set(c.key, c.valueConfidence));
+    }
+    documentValuePairs.push(individualKeyValue);
+    documentConfidencePairs.push(individualConfidenceValue);
+    return { documentValuePairs, documentConfidencePairs };
+}
+
+const popularPageSheet = (pageValueWorkSheet, pageConflidenceWorkSheet, keys, pages, keyValuePairJson) => {
+    for (let x = 0; x < keys.length; x++) {
+        pageValueWorkSheet.cell(1, x + 1).string(keys[x]);
+        pageConflidenceWorkSheet.cell(1, x + 1).string(keys[x]);
+    }
+
+    for (let x = 0; x < keys.length; x++)
+        for (let y = 0; y < pages.length; y++) {
+            let data = keyValuePairJson.filter(c => c.page === pages[y] && c.key === keys[x]);
+            if (data.length === 1) {
+                pageValueWorkSheet.cell(y + 2, x + 1).string(data[0].val);
+                pageConflidenceWorkSheet.cell(y + 2, x + 1).number(data[0].valueConfidence);
+            }
+        }
+}
+
+const popularDocumentSheet = (documentValueWorkSheet, documentConflidenceWorkSheet, keys, pages, keyValuePairJson) => {
+    let { documentValuePairs, documentConfidencePairs } = getDocumentPairs(keyValuePairJson, pages);
+    for (let x = 0; x < keys.length; x++) {
+        documentValueWorkSheet.cell(1, x + 1).string(keys[x]);
+        documentConflidenceWorkSheet.cell(1, x + 1).string(keys[x]);
+    }
+
+    for (let x = 0; x < keys.length; x++)
+        for (let y = 0; y < pages.length; y++) {
+            documentValueWorkSheet.cell(y + 2, x + 1).string(documentValuePairs[y].get(keys[x]) || "");
+            documentConflidenceWorkSheet.cell(y + 2, x + 1).number(documentConfidencePairs[y].get(keys[x]) || 0);
+        }
+}
 
 const writeExcel = (workbook, filePath) => {
     return new Promise((resolve, reject) => {
