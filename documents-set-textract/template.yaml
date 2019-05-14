@@ -14,7 +14,7 @@ Description: >
   documents-set-textract
 Globals:
   Function:
-    Runtime: nodejs8.10
+    Runtime: nodejs10.x
     Timeout: 300
     Handler: app.lambdaHandler
     Environment:
@@ -34,7 +34,7 @@ Resources:
         Variables:
           StateMachineArn: !Ref DocumentStateMachine
       Events:
-        ConvertPdfToImagesEvent:
+        PdfUploadEvent:
           Type: S3
           Properties:
             Bucket: !Ref PdfBucket
@@ -50,6 +50,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: pdf2images/
+      Runtime: nodejs8.10
       Timeout: 900
       MemorySize: 1024
       Policies: AWSLambdaExecute
@@ -70,7 +71,7 @@ Resources:
     Properties:
       ContentUri: layers/aws-sdk
       CompatibleRuntimes:
-        - nodejs8.10
+        - nodejs10.x
       LicenseInfo: 'Available under the MIT-0 license.'
       RetentionPolicy: Delete   
       
