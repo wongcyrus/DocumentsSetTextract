@@ -87,7 +87,7 @@ const popularDocumentSheet = (documentValueWorkSheet, documentConflidenceWorkShe
     }
 
     for (let x = 0; x < keys.length; x++)
-        for (let y = 0; y < pages.length; y++) {
+        for (let y = 0; y < documentValuePairs.length; y++) {
             documentValueWorkSheet.cell(y + 2, x + 1).string(documentValuePairs[y].get(keys[x]) || "");
             documentConflidenceWorkSheet.cell(y + 2, x + 1).number(documentConfidencePairs[y].get(keys[x]) || 0);
         }

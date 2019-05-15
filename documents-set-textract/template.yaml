@@ -6,7 +6,7 @@ Parameters:
     Default: 30
   ProcessEachImage:
     Type: String
-    Default: true
+    Default: false
     AllowedValues: 
       - true
       - false
@@ -201,7 +201,13 @@ Resources:
                        "Start Document Analysis": {
                           "Type": "Task",
                           "Resource": "${StartDocumentAnalysis}",
-                          "Next": "Configure Count"
+                          "Next": "Configure Count",
+                          "Retry": [ {
+                              "ErrorEquals": [ "LimitExceededException", "ProvisionedThroughputExceededException"],
+                              "IntervalSeconds": 10,
+                              "BackoffRate": 2.0,
+                              "MaxAttempts": 3
+                          }]
                        },
                       "Configure Count": {
                           "Type": "Pass",
@@ -295,7 +301,13 @@ Resources:
                 "Generate Page Key Value Pair": {
                   "Type": "Task",
                   "Resource": "${GeneratePageKeyValuePair}",
-                  "Next": "Json To Excel"
+                  "Next": "Json To Excel",
+                  "Retry": [ {
+                      "ErrorEquals": [ "SyntaxError"],
+                      "IntervalSeconds": 10,
+                      "BackoffRate": 2.0,
+                      "MaxAttempts": 3
+                  }]
                 },
                 "Json To Excel": {
                   "Type": "Task",
