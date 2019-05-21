@@ -1,5 +1,5 @@
 {
-  "name": "pdf2images",
+  "name": "pdf-to-images",
   "version": "1.0.0",
   "description": "pdf to images",
   "main": "app.js",

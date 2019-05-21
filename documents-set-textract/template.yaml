@@ -50,13 +50,23 @@ Resources:
   ConvertPdfToImages:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: pdf2images/
+      CodeUri: pdf-to-images/
       Runtime: nodejs8.10
       Timeout: 900
       MemorySize: 1024
       Policies: AWSLambdaExecute
       Layers:
         - !Ref GhostscriptLayer
+
+  CombineImagesToPdf:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: images-to-pdf/
+      Timeout: 900
+      MemorySize: 1024
+      Policies: AWSLambdaExecute
+      Layers:
+        - !Ref PdfKitLayer
 
   GhostscriptLayer:
     Type: AWS::Serverless::LayerVersion
@@ -83,7 +93,16 @@ Resources:
       CompatibleRuntimes:
         - nodejs10.x
       LicenseInfo: 'Available under the MIT-0 license.'
-      RetentionPolicy: Delete        
+      RetentionPolicy: Delete     
+      
+  PdfKitLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: layers/pdfkit
+      CompatibleRuntimes:
+        - nodejs10.x
+      LicenseInfo: 'Available under the MIT-0 license.'
+      RetentionPolicy: Delete   
       
   AnalyzeDocumentImages:
     Type: AWS::Serverless::Function
@@ -307,6 +326,11 @@ Resources:
                         "Correct Image Orientation": {
                           "Type": "Task",
                           "Resource": "${CorrectImageOrientation}",
+                          "Next": "Combine Images To Pdf"
+                        },
+                         "Combine Images To Pdf": {
+                          "Type": "Task",
+                          "Resource": "${CombineImagesToPdf}",
                           "End": true
                         },
                         "Just Extract Images": {
@@ -347,6 +371,7 @@ Resources:
             JsonToExcel: !GetAtt [ JsonToExcel, Arn ]
             GeneratePageKeyValuePair: !GetAtt [ GeneratePageKeyValuePair, Arn ]
             CorrectImageOrientation: !GetAtt [ CorrectImageOrientation, Arn ]
+            CombineImagesToPdf: !GetAtt [ CombineImagesToPdf, Arn ]
       RoleArn: !GetAtt [ DocumentStatesExecutionRole, Arn ]
       
   PdfBucket:

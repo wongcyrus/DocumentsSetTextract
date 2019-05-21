@@ -31,7 +31,7 @@ exports.lambdaHandler = async(event, context) => {
         console.log(c);
         let data = await readFile(c.path);
         let key = c.path.replace("/tmp/", "");
-        return await s3.putObject({ Bucket: process.env['ImagesBucket'], Key: key, Body: data }).promise();
+        return await s3.putObject({ Bucket: process.env['ImagesBucket'], Key: key, Body: data, ContentType: 'image/png' }).promise();
     }));
     console.log(s3Results);
     const images = results.message.map(c => c.path.replace("/tmp/", ""));

@@ -6,6 +6,10 @@ cd layers/sharp
 npm install
 cd ..
 cd ..
+cd layers/pdfkit
+npm install
+cd ..
+cd ..
 
 cd analyze-document-images
 npm install
@@ -19,7 +23,7 @@ cd ..
 cd get-document-analysis
 npm install
 cd ..
-cd pdf2images
+cd pdf-to-images
 npm install
 cd ..
 cd start-document-analysis
