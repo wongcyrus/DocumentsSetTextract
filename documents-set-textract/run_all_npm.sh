@@ -23,6 +23,15 @@ cd ..
 cd get-document-analysis
 npm install
 cd ..
+cd get-document-analysis
+npm install
+cd ..
+cd images-to-pdf
+npm install
+cd ..
+cd json-to-excel
+npm install
+cd ..
 cd pdf-to-images
 npm install
 cd ..
@@ -31,7 +40,4 @@ npm install
 cd ..
 cd start-document-state-machine
 npm install
-cd ..
-cd json-to-excel
-npm install
-cd ..
+
