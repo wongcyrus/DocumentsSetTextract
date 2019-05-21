@@ -6,7 +6,7 @@ const readFile = promisify(fs.readFile);
 const xl = require('excel4node');
 
 exports.lambdaHandler = async(event, context) => {
-    const key = event[0].keyValuePairJson;
+    const key = event.keyValuePairJson;
     const filePath = "/tmp/" + key;
     await s3download(process.env['TextractBucket'], key, filePath);
 
@@ -28,7 +28,7 @@ exports.lambdaHandler = async(event, context) => {
     popularPageSheet(pageValueWorkSheet, pageConflidenceWorkSheet, keys, pages, keyValuePairJson);
     popularDocumentSheet(documentValueWorkSheet, documentConflidenceWorkSheet, keys, pages, keyValuePairJson);
 
-    const excelKey = event[0].resultKey.replace(".json", ".xlsx");
+    const excelKey = event.resultKey.replace(".json", ".xlsx");
     const excelFilePath = '/tmp/' + excelKey;
     await writeExcel(wb, excelFilePath);
 
@@ -36,9 +36,10 @@ exports.lambdaHandler = async(event, context) => {
     await s3.putObject({
         Bucket: process.env['TextractBucket'],
         Key: excelKey,
-        Body: data
+        Body: data,
+        ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     }).promise();
-    event[0].excelKey = excelKey;
+    event.excelKey = excelKey;
     return event;
 };
 

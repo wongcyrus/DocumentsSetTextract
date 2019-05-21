@@ -228,138 +228,101 @@ Resources:
           - |-
             {
               "Comment": "Documents Set Textract State Machine",
-              "StartAt": "Analyze Document",
+              "StartAt": "Convert PDF to Images",
               "States": {
-                "Analyze Document": {
-                  "Type": "Parallel",
-                  "Next": "Generate Page Key Value Pair",
-                  "Branches": [
-                   {
-                     "StartAt": "Start Document Analysis",
-                     "States": {
-                       "Start Document Analysis": {
-                          "Type": "Task",
-                          "Resource": "${StartDocumentAnalysis}",
-                          "Next": "Configure Count",
-                          "Retry": [ {
-                              "ErrorEquals": [ "LimitExceededException", "ProvisionedThroughputExceededException"],
-                              "IntervalSeconds": 10,
-                              "BackoffRate": 2.0,
-                              "MaxAttempts": 3
-                          }]
-                       },
-                      "Configure Count": {
-                          "Type": "Pass",
-                          "InputPath": "$.JobId",
-                          "Result": {
-                              "count": ${NumberOfIteration},
-                              "index": 0,
-                              "step": 1
-                          },
-                          "ResultPath": "$.iterator",
-                          "Next": "Iterator"
-                        },
-                        "Iterator": {
-                            "Type": "Task",
-                            "Resource": "${Iterator}",
-                            "ResultPath": "$.iterator",
-                            "Next": "Is Count Reached Or Succeeded"
-                        },
-                        "Is Count Reached Or Succeeded": {
-                            "Type": "Choice",
-                            "Choices": [
-                                {
-                                    "Variable": "$.iterator.continue",
-                                    "BooleanEquals": true,
-                                    "Next": "Get Document Analysis"
-                                }
-                            ],
-                            "Default": "Finish Document Analysis"
-                        },
-                        "Get Document Analysis": {
-                            "Type": "Task",
-                            "Resource": "${GetDocumentAnalysis}",
-                            "Next": "Wait 10 seconds"
-                        },
-                        "Wait 10 seconds": {
-                          "Type": "Wait",
-                          "Seconds": 10,
-                          "Next": "Iterator"
-                        },
-                        "Finish Document Analysis": {
-                            "Type": "Pass",
-                            "OutputPath": "$.resultKey", 
-                            "End": true
-                        }            
-                     }
-                    },      
-                    {
-                      "StartAt": "Convert PDF to Images",
-                      "States": {
-                        "Convert PDF to Images": {
-                          "Type": "Task",
-                          "Resource": "${ConvertPdfToImages}",
-                          "Next": "Set Process Each Image Variable"
-                        },
-                        "Set Process Each Image Variable": {
-                          "Type": "Pass",
-                          "Result": ${ProcessEachImage},
-                          "ResultPath": "$.ProcessEachImage",
-                          "Next": "Analyze Document Each Image"
-                        },
-                        "Analyze Document Each Image": {
-                          "Type": "Choice",
-                          "Choices": [
-                              {
-                                  "Variable": "$.ProcessEachImage",
-                                  "BooleanEquals": true,
-                                  "Next": "Analyze Document Images"
-                              }
-                          ],
-                          "Default": "Just Extract Images"
-                        },
-                        "Analyze Document Images": {
-                          "Type": "Task",
-                          "Resource": "${AnalyzeDocumentImages}",
-                          "Next": "Correct Image Orientation"
-                        },
-                        "Correct Image Orientation": {
-                          "Type": "Task",
-                          "Resource": "${CorrectImageOrientation}",
-                          "Next": "Combine Images To Pdf"
-                        },
-                         "Combine Images To Pdf": {
-                          "Type": "Task",
-                          "Resource": "${CombineImagesToPdf}",
-                          "End": true
-                        },
-                        "Just Extract Images": {
-                            "Type": "Pass",
-                            "End": true
-                        }     
-                      }
-                   }
-                  ]
-                },
-                "Generate Page Key Value Pair": {
+                "Convert PDF to Images": {
                   "Type": "Task",
-                  "Resource": "${GeneratePageKeyValuePair}",
-                  "Next": "Json To Excel",
+                  "Resource": "${ConvertPdfToImages}",
+                  "Next": "Analyze Document Images"
+                },
+                "Analyze Document Images": {
+                  "Type": "Task",
+                  "Resource": "${AnalyzeDocumentImages}",
+                  "Next": "Correct Image Orientation"
+                },
+                "Correct Image Orientation": {
+                  "Type": "Task",
+                  "Resource": "${CorrectImageOrientation}",
+                  "Next": "Combine Images To Pdf"
+                },
+                "Combine Images To Pdf": {
+                  "Type": "Task",
+                  "Resource": "${CombineImagesToPdf}",
+                  "Next": "Start Document Analysis"
+                },                
+                "Start Document Analysis": {
+                  "Type": "Task",
+                  "Resource": "${StartDocumentAnalysis}",
+                  "Next": "Configure Count",
                   "Retry": [ {
-                      "ErrorEquals": [ "SyntaxError"],
+                      "ErrorEquals": [ "LimitExceededException", "ProvisionedThroughputExceededException"],
                       "IntervalSeconds": 10,
                       "BackoffRate": 2.0,
                       "MaxAttempts": 3
                   }]
                 },
-                "Json To Excel": {
-                  "Type": "Task",
-                  "Resource": "${JsonToExcel}",
-                  "Next": "SuccessState"
-                },
-                "SuccessState": {
-                  "Type": "Succeed"
-                }
+                "Configure Count": {
+                    "Type": "Pass",
+                    "InputPath": "$.JobId",
+                    "Result": {
+                        "count": ${NumberOfIteration},
+                        "index": 0,
+                        "step": 1
+                    },
+                    "ResultPath": "$.iterator",
+                    "Next": "Iterator"
+                  },
+                  "Iterator": {
+                      "Type": "Task",
+                      "Resource": "${Iterator}",
+                      "ResultPath": "$.iterator",
+                      "Next": "Is Count Reached Or Succeeded"
+                  },
+                  "Is Count Reached Or Succeeded": {
+                      "Type": "Choice",
+                      "Choices": [
+                          {
+                              "Variable": "$.iterator.continue",
+                              "BooleanEquals": true,
+                              "Next": "Get Document Analysis"
+                          }
+                      ],
+                      "Default": "Finish Document Analysis"
+                  },
+                  "Get Document Analysis": {
+                      "Type": "Task",
+                      "Resource": "${GetDocumentAnalysis}",
+                      "Next": "Wait 10 seconds"
+                  },
+                  "Wait 10 seconds": {
+                    "Type": "Wait",
+                    "Seconds": 10,
+                    "Next": "Iterator"
+                  },
+                  "Finish Document Analysis": {
+                    "Type": "Pass",
+                    "OutputPath": "$.resultKey", 
+                    "Next": "Generate Page Key Value Pair"
+                  }, 
+                  "Generate Page Key Value Pair": {
+                    "Type": "Task",
+                    "Resource": "${GeneratePageKeyValuePair}",
+                    "Next": "Json To Excel",
+                    "Retry": [ {
+                        "ErrorEquals": [ "SyntaxError"],
+                        "IntervalSeconds": 10,
+                        "BackoffRate": 2.0,
+                        "MaxAttempts": 3
+                    }]
+                  },
+                  "Json To Excel": {
+                    "Type": "Task",
+                    "Resource": "${JsonToExcel}",
+                    "Next": "SuccessState"
+                  },
+                  "SuccessState": {
+                    "Type": "Succeed"
+                  }
               }
             }
           - 

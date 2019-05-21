@@ -16,7 +16,12 @@ exports.lambdaHandler = async(event, context) => {
     const stats = fs.statSync(pdf);
     console.log('File Size in Bytes:- ' + stats.size);
     const data = await readFile(pdf);
-    await s3.putObject({ Bucket: process.env['ImagesBucket'], Key: event.srcKey, Body: data, ContentType: 'application/pdf' }).promise();
+    await s3.putObject({
+        Bucket: process.env['ImagesBucket'],
+        Key: event.srcKey,
+        Body: data,
+        ContentType: 'application/pdf'
+    }).promise();
 
     return event;
 };

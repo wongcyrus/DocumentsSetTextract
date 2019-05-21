@@ -49,7 +49,12 @@ const detectText = async images => {
         };
         const result = await rekognition.detectText(params).promise();
         const resultKey = key.replace(".png", "_text.json");
-        await s3.putObject({ Bucket: process.env['TextractBucket'], Key: resultKey, Body: JSON.stringify(result) }).promise();
+        await s3.putObject({
+            Bucket: process.env['TextractBucket'],
+            Key: resultKey,
+            Body: JSON.stringify(result),
+            ContentType: "application/json"
+        }).promise();
         resultKeys.push(resultKey);
         detectTexts.push(result);
     }

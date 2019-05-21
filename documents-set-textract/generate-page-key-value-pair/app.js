@@ -3,7 +3,7 @@ const s3 = new AWS.S3();
 const fs = require('fs');
 
 exports.lambdaHandler = async(event, context) => {
-    const key = event[0].resultKey;
+    const key = event.resultKey;
     const filePath = "/tmp/" + key;
     await s3download(process.env['TextractBucket'], key, filePath);
 
@@ -11,13 +11,16 @@ exports.lambdaHandler = async(event, context) => {
     const textractResults = JSON.parse(rawdata);
 
     const { blockMap, keyMap, valueMap } = getKeyValueMap(textractResults);
-    const keyValues= getKeyValueRelationship(keyMap, blockMap, valueMap);
+    const keyValues = getKeyValueRelationship(keyMap, blockMap, valueMap);
     console.log(keyValues);
-    const keyValuePairJson = key.replace(".json","_keyValue.json");
-    await s3.putObject({ Bucket: process.env['TextractBucket'], 
-                        Key: keyValuePairJson, 
-                        Body: JSON.stringify(keyValues) }).promise();
-    event[0].keyValuePairJson = keyValuePairJson;
+    const keyValuePairJson = key.replace(".json", "_keyValue.json");
+    await s3.putObject({
+        Bucket: process.env['TextractBucket'],
+        Key: keyValuePairJson,
+        Body: JSON.stringify(keyValues),
+        ContentType: "application/json"
+    }).promise();
+    event.keyValuePairJson = keyValuePairJson;
     return event;
 };
 
@@ -70,7 +73,6 @@ const getKeyValueRelationship = (keyMap, blockMap, valueMap) => {
         })
         .filter(c => c.key !== "");
 }
-
 
 const getKeyValueMap = textractResults => {
     const blocks = textractResults.Blocks;

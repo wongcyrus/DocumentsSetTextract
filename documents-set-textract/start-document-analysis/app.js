@@ -2,8 +2,8 @@ const AWS = require('/opt/node_modules/aws-sdk');
 const textract = new AWS.Textract();
 
 exports.lambdaHandler = async(event, context) => {
-    const bucket = event.bucket;
-    const key = event.key;
+    const bucket = process.env["ImagesBucket"];
+    const key = event.srcKey;
 
     const params = {
         DocumentLocation: { /* required */
