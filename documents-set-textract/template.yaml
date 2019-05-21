@@ -4,12 +4,6 @@ Parameters:
   NumberOfIteration: 
     Type: Number
     Default: 30
-  ProcessEachImage:
-    Type: String
-    Default: false
-    AllowedValues: 
-      - true
-      - false
 Description: >
   documents-set-textract
 Globals:
@@ -22,7 +16,6 @@ Globals:
       Variables:
         ImagesBucket: !Ref ImagesBucket
         TextractBucket: !Ref TextractBucket
-        ProcessEachImage: !Ref ProcessEachImage
 Resources:
   StartDocumentStateMachine:
     Type: AWS::Serverless::Function
