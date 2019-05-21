@@ -17,6 +17,7 @@ Globals:
     Runtime: nodejs10.x
     Timeout: 300
     Handler: app.lambdaHandler
+    Tracing: Active
     Environment:
       Variables:
         ImagesBucket: !Ref ImagesBucket
@@ -75,6 +76,15 @@ Resources:
       LicenseInfo: 'Available under the MIT-0 license.'
       RetentionPolicy: Delete   
       
+  SharpLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: layers/sharp
+      CompatibleRuntimes:
+        - nodejs10.x
+      LicenseInfo: 'Available under the MIT-0 license.'
+      RetentionPolicy: Delete        
+      
   AnalyzeDocumentImages:
     Type: AWS::Serverless::Function
     Properties:
@@ -84,7 +94,17 @@ Resources:
         - !Ref AwsSdkLayer         
       Policies: 
         - AWSLambdaExecute
-        - arn:aws:iam::aws:policy/AmazonTextractFullAccess
+        - arn:aws:iam::aws:policy/AmazonRekognitionReadOnlyAccess
+
+  CorrectImageOrientation:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: correct-image-orientation/
+      MemorySize: 1024
+      Layers:
+        - !Ref SharpLayer       
+      Policies: 
+        - AWSLambdaExecute
         
   Iterator:
     Type: AWS::Serverless::Function
@@ -274,21 +294,20 @@ Resources:
                               {
                                   "Variable": "$.ProcessEachImage",
                                   "BooleanEquals": true,
-                                  "Next": "Process Document Images"
+                                  "Next": "Analyze Document Images"
                               }
                           ],
                           "Default": "Just Extract Images"
                         },
-                        "Process Document Images": {
+                        "Analyze Document Images": {
                           "Type": "Task",
                           "Resource": "${AnalyzeDocumentImages}",
-                          "End": true,
-                          "Retry": [ {
-                              "ErrorEquals": [ "ProvisionedThroughputExceededException"],
-                              "IntervalSeconds": 10,
-                              "BackoffRate": 2.0,
-                              "MaxAttempts": 3
-                          }]
+                          "Next": "Correct Image Orientation"
+                        },
+                        "Correct Image Orientation": {
+                          "Type": "Task",
+                          "Resource": "${CorrectImageOrientation}",
+                          "End": true
                         },
                         "Just Extract Images": {
                             "Type": "Pass",
@@ -327,6 +346,7 @@ Resources:
             Iterator: !GetAtt [ Iterator, Arn ]
             JsonToExcel: !GetAtt [ JsonToExcel, Arn ]
             GeneratePageKeyValuePair: !GetAtt [ GeneratePageKeyValuePair, Arn ]
+            CorrectImageOrientation: !GetAtt [ CorrectImageOrientation, Arn ]
       RoleArn: !GetAtt [ DocumentStatesExecutionRole, Arn ]
       
   PdfBucket:

@@ -1,6 +1,5 @@
 const AWS = require('aws-sdk');
 const stepfunctions = new AWS.StepFunctions();
-const s3 = new AWS.S3();
 const moment = require('moment');
 
 exports.lambdaHandler = async(event, context) => {

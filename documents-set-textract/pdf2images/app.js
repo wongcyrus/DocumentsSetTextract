@@ -36,7 +36,7 @@ exports.lambdaHandler = async(event, context) => {
     console.log(s3Results);
     const images = results.message.map(c => c.path.replace("/tmp/", ""));
 
-    return { srcBucket, srcKey, images};
+    return { srcBucket, srcKey, imagePrefix: images[0].replace("1.png", ""), numberOfImages: images.length };
 };
 
 const s3download = (bucketName, keyName, localDest) => {
@@ -56,7 +56,7 @@ const s3download = (bucketName, keyName, localDest) => {
             })
             .on('error', (error) => {
                 return reject(error);
-            }).pipe(file)
+            }).pipe(file);
     });
 };
 
@@ -69,7 +69,7 @@ const convert2images = (filePath, outputdir) => {
     });
     return new Promise((resolve, reject) => {
         pdf2img.convert(filePath, (err, info) => {
-            if (err) reject(err)
+            if (err) reject(err);
             else resolve(info);
         });
     })

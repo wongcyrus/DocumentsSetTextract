@@ -2,7 +2,15 @@ cd layers/aws-sdk
 npm install
 cd ..
 cd ..
+cd layers/sharp
+npm install
+cd ..
+cd ..
+
 cd analyze-document-images
+npm install
+cd ..
+cd correct-image-orientation
 npm install
 cd ..
 cd generate-page-key-value-pair
