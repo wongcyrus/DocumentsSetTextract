@@ -6,6 +6,5 @@
   "repository": "https://github.com/wongcyrus/DocumentsSetTextract/tree/master/documents-set-textract",
   "author": "SAM CLI",
   "license": "MIT",
-  "dependencies": {
-  }
+  "dependencies": {}
 }

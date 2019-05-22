@@ -6,6 +6,18 @@ Parameters:
     Default: 30
 Description: >
   documents-set-textract
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: DocumentsSetTextract
+    Description: Extends Amazon Textract to support batch of documents from Scanner in random orientation and random order within one submission.
+    Author: Cyrus Wong
+    SpdxLicenseId: MIT
+    LicenseUrl: LICENSE.txt
+    ReadmeUrl: README.md
+    Labels: ['Textract','Rekognition']
+    HomePageUrl: https://github.com/wongcyrus/DocumentsSetTextract
+    SemanticVersion: 1.0.0
+    SourceCodeUrl: https://github.com/wongcyrus/DocumentsSetTextract
 Globals:
   Function:
     Runtime: nodejs10.x
@@ -192,7 +204,7 @@ Resources:
             Resource: !Ref TextractCompletedTopic
       
   DocumentStatesExecutionRole:
-    Type: "AWS::IAM::Role"
+    Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -214,7 +226,7 @@ Resources:
                 Resource: "*"
 
   DocumentStateMachine:
-    Type: "AWS::StepFunctions::StateMachine"
+    Type: AWS::StepFunctions::StateMachine
     Properties:
       DefinitionString:
         !Sub
