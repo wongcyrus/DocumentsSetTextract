@@ -20,7 +20,7 @@ exports.lambdaHandler = async(event, context) => {
     const pageConflidenceWorkSheet = wb.addWorksheet('PageConfidence');
 
     const keys = Array.from(new Set(keyValuePairJson.map(c => c.key))).sort();
-    const pages = Array.from(new Set(keyValuePairJson.map(c => c.page))).sort();
+    const pages = Array.from(new Set(keyValuePairJson.map(c => c.page))).sort((a, b) => a - b);
     // console.log(keys);
     // console.log(pages);
     // console.log(keyValuePairJson);

@@ -236,6 +236,11 @@ Resources:
                 "Correct Image Orientation": {
                   "Type": "Task",
                   "Resource": "${CorrectImageOrientation}",
+                  "Next": "Wait 5 seconds"
+                },
+                "Wait 5 seconds": {
+                  "Type": "Wait",
+                  "Seconds": 5,
                   "Next": "Combine Images To Pdf"
                 },
                 "Combine Images To Pdf": {
