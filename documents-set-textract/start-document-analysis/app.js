@@ -1,4 +1,4 @@
-const AWS = require('/opt/node_modules/aws-sdk');
+const AWS = require('aws-sdk');
 const textract = new AWS.Textract();
 
 exports.lambdaHandler = async(event, context) => {

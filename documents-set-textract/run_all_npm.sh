@@ -1,7 +1,3 @@
-cd layers/aws-sdk
-npm install
-cd ..
-cd ..
 cd layers/sharp
 npm install
 cd ..

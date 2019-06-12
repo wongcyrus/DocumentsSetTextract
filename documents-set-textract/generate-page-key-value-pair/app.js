@@ -25,7 +25,7 @@ exports.lambdaHandler = async(event, context) => {
 };
 
 const concat = (x, y) =>
-    x.concat(y)
+    x.concat(y);
 
 const findValueBlock = (keyBlock, valueMap) => {
     let valueBlock;
@@ -39,7 +39,7 @@ const findValueBlock = (keyBlock, valueMap) => {
         return valueBlock[0];
     }
     return valueBlock;
-}
+};
 
 const getText = (result, blockMap) => {
     let text = "";
@@ -50,17 +50,17 @@ const getText = (result, blockMap) => {
                 relationship.Ids.map(id => blockMap.get(id))
             ).reduce(concat, []);
         text += blocks.filter(b => b.BlockType === "WORD")
-            .reduce((acc, item) => acc + " " + item.Text, "")
+            .reduce((acc, item) => acc + " " + item.Text, "");
         text += blocks.filter(b => b.BlockType === "SELECTION_ELEMENT" && b.SelectionStatus == 'SELECTED')
-            .reduce((acc, item) => acc + "X ", "")
+            .reduce((acc, item) => acc + "X ", "");
     }
     return text.trim();
-}
+};
 const getKeyValueRelationship = (keyMap, blockMap, valueMap) => {
     return Array.from(keyMap.keys())
         .map(blockId => { return { blockId: blockId, keyBlock: keyMap.get(blockId) } })
         .map(c => {
-            return { blockId: c.blockId, keyBlock: c.keyBlock, valueBlock: findValueBlock(c.keyBlock, valueMap) }
+            return { blockId: c.blockId, keyBlock: c.keyBlock, valueBlock: findValueBlock(c.keyBlock, valueMap) };
         })
         .map(c => {
             return {
@@ -69,17 +69,17 @@ const getKeyValueRelationship = (keyMap, blockMap, valueMap) => {
                 keyConfidence: c.keyBlock.Confidence,
                 valueConfidence: c.valueBlock.Confidence,
                 page: c.keyBlock.Page
-            }
+            };
         })
         .filter(c => c.key !== "");
-}
+};
 
 const getKeyValueMap = textractResults => {
     const blocks = textractResults.Blocks;
 
     const blockMap = blocks.map(block => { return { id: block.Id, block } })
         .reduce((map, obj) => {
-            map.set(obj.id, obj.block)
+            map.set(obj.id, obj.block);
             return map;
         }, new Map());
 
@@ -95,7 +95,7 @@ const getKeyValueMap = textractResults => {
             return map;
         }, { keyMap: new Map(), valueMap: new Map() });
     return { blockMap, keyMap, valueMap };
-}
+};
 
 
 const s3download = (bucketName, keyName, localDest) => {
@@ -105,8 +105,8 @@ const s3download = (bucketName, keyName, localDest) => {
     let params = {
         Bucket: bucketName,
         Key: keyName
-    }
-    let file = fs.createWriteStream(localDest)
+    };
+    let file = fs.createWriteStream(localDest);
 
     return new Promise((resolve, reject) => {
         s3.getObject(params).createReadStream()
@@ -115,6 +115,6 @@ const s3download = (bucketName, keyName, localDest) => {
             })
             .on('error', (error) => {
                 return reject(error);
-            }).pipe(file)
+            }).pipe(file);
     });
 };

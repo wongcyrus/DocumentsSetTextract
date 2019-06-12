@@ -82,15 +82,6 @@ Resources:
       LicenseInfo: 'Available under the MIT-0 license.'
       RetentionPolicy: Delete    
 
-  AwsSdkLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      ContentUri: layers/aws-sdk
-      CompatibleRuntimes:
-        - nodejs10.x
-      LicenseInfo: 'Available under the MIT-0 license.'
-      RetentionPolicy: Delete   
-      
   SharpLayer:
     Type: AWS::Serverless::LayerVersion
     Properties:
@@ -114,8 +105,6 @@ Resources:
     Properties:
       CodeUri: analyze-document-images/
       MemorySize: 1024
-      Layers:
-        - !Ref AwsSdkLayer         
       Policies: 
         - AWSLambdaExecute
         - arn:aws:iam::aws:policy/AmazonRekognitionReadOnlyAccess
@@ -147,8 +136,6 @@ Resources:
       Policies: 
         - AWSLambdaExecute
         - arn:aws:iam::aws:policy/AmazonTextractFullAccess
-      Layers:
-        - !Ref AwsSdkLayer        
       Environment:
         Variables:
           TextractCompletedTopicArn: !Ref TextractCompletedTopic
@@ -161,8 +148,6 @@ Resources:
       Policies: 
         - AWSLambdaExecute
         - arn:aws:iam::aws:policy/AmazonTextractFullAccess
-      Layers:
-        - !Ref AwsSdkLayer     
 
   GeneratePageKeyValuePair:
     Type: AWS::Serverless::Function

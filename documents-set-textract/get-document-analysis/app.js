@@ -1,4 +1,4 @@
-const AWS = require('/opt/node_modules/aws-sdk');
+const AWS = require('aws-sdk');
 const textract = new AWS.Textract();
 const s3 = new AWS.S3();
 
@@ -7,7 +7,7 @@ exports.lambdaHandler = async(event, context) => {
     let params = {
         JobId: event.JobId,
         /* required */
-        MaxResults: '100'
+        MaxResults: '1000'
     };
     let acc = [];
     await getDocumentAnalysis(params, acc);
