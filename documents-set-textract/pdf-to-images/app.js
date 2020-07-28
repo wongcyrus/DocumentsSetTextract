@@ -11,12 +11,7 @@ exports.lambdaHandler = async(event, context) => {
     const srcBucket = event.bucket;
     const srcKey = event.key;
 
-    const params = {
-        Bucket: srcBucket,
-        Key: srcKey
-    };
-
-    const destKeyPrefix = srcKey.replace(/\s/g, '_').replace(".pdf", "")
+    const destKeyPrefix = srcKey.replace(/\s/g, '_').replace(".pdf", "");
     const outputdir = "/tmp/" + destKeyPrefix;
     fs.existsSync(outputdir) || fs.mkdirSync(outputdir);
     const filePath = "/tmp/" + srcKey.replace(/\s/g, '_');
@@ -46,8 +41,8 @@ const s3download = (bucketName, keyName, localDest) => {
     let params = {
         Bucket: bucketName,
         Key: keyName
-    }
-    let file = fs.createWriteStream(localDest)
+    };
+    let file = fs.createWriteStream(localDest);
 
     return new Promise((resolve, reject) => {
         s3.getObject(params).createReadStream()
@@ -72,5 +67,5 @@ const convert2images = (filePath, outputdir) => {
             if (err) reject(err);
             else resolve(info);
         });
-    })
+    });
 };

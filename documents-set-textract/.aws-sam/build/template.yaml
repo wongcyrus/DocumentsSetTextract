@@ -1,0 +1,308 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  NumberOfIteration:
+    Type: Number
+    Default: 30
+Description: 'documents-set-textract
+
+  '
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: DocumentsSetTextract
+    Description: Extends Amazon Textract to support batch of documents from Scanner
+      in random orientation and random order within one submission.
+    Author: Cyrus Wong
+    SpdxLicenseId: MIT
+    LicenseUrl: ../../LICENSE.txt
+    ReadmeUrl: ../../README.md
+    Labels:
+    - Textract
+    - Rekognition
+    HomePageUrl: https://github.com/wongcyrus/DocumentsSetTextract
+    SemanticVersion: 1.0.0
+    SourceCodeUrl: https://github.com/wongcyrus/DocumentsSetTextract
+Globals:
+  Function:
+    Runtime: nodejs12.x
+    Timeout: 300
+    Handler: app.lambdaHandler
+    Tracing: Active
+    Environment:
+      Variables:
+        ImagesBucket:
+          Ref: ImagesBucket
+        TextractBucket:
+          Ref: TextractBucket
+Resources:
+  StartDocumentStateMachine:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: StartDocumentStateMachine
+      Policies:
+      - AWSLambdaExecute
+      - arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess
+      Environment:
+        Variables:
+          StateMachineArn:
+            Ref: DocumentStateMachine
+      Events:
+        PdfUploadEvent:
+          Type: S3
+          Properties:
+            Bucket:
+              Ref: PdfBucket
+            Events: s3:ObjectCreated:*
+            Filter:
+              S3Key:
+                Rules:
+                - Name: suffix
+                  Value: .pdf
+  ConvertPdfToImages:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ConvertPdfToImages
+      Timeout: 900
+      MemorySize: 1024
+      Policies: AWSLambdaExecute
+      Layers:
+      - arn:aws:lambda:us-east-1:764866452798:layer:ghostscript:8
+      - Ref: ImageMagickLayer
+  CombineImagesToPdf:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: CombineImagesToPdf
+      Timeout: 900
+      MemorySize: 1024
+      Policies: AWSLambdaExecute
+      Layers:
+      - Ref: PdfKitLayer
+  SharpLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: ../../layers/sharp
+      CompatibleRuntimes:
+      - nodejs10.x
+      LicenseInfo: Available under the MIT-0 license.
+      RetentionPolicy: Delete
+  PdfKitLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      ContentUri: ../../layers/pdfkit
+      CompatibleRuntimes:
+      - nodejs10.x
+      LicenseInfo: Available under the MIT-0 license.
+      RetentionPolicy: Delete
+  ImageMagickLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: image-magick
+      Description: Static build of ImageMagick for AWS Linux 2,
+      ContentUri: ../../layers/layer.zip
+      CompatibleRuntimes:
+      - nodejs10.x
+      - nodejs12.x
+      - python3.8
+      LicenseInfo: https://imagemagick.org/script/license.php
+      RetentionPolicy: Delete
+  AnalyzeDocumentImages:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: AnalyzeDocumentImages
+      MemorySize: 1024
+      Policies:
+      - AWSLambdaExecute
+      - arn:aws:iam::aws:policy/AmazonRekognitionReadOnlyAccess
+  CorrectImageOrientation:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: CorrectImageOrientation
+      MemorySize: 1024
+      Layers:
+      - Ref: SharpLayer
+      Policies:
+      - AWSLambdaExecute
+  Iterator:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: Iterator
+  TextractCompletedTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: TextractCompletionTopic
+  StartDocumentAnalysis:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: StartDocumentAnalysis
+      Policies:
+      - AWSLambdaExecute
+      - arn:aws:iam::aws:policy/AmazonTextractFullAccess
+      Environment:
+        Variables:
+          TextractCompletedTopicArn:
+            Ref: TextractCompletedTopic
+          TextractExecutionRoleArn:
+            Fn::GetAtt:
+            - TextractExecutionRole
+            - Arn
+  GetDocumentAnalysis:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: GetDocumentAnalysis
+      Policies:
+      - AWSLambdaExecute
+      - arn:aws:iam::aws:policy/AmazonTextractFullAccess
+  GeneratePageKeyValuePair:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: GeneratePageKeyValuePair
+      MemorySize: 2048
+      Policies:
+      - AWSLambdaExecute
+  JsonToExcel:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: JsonToExcel
+      MemorySize: 2048
+      Policies:
+      - AWSLambdaExecute
+  TextractExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - textract.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: root
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - SNS:Publish
+            Resource:
+              Ref: TextractCompletedTopic
+  DocumentStatesExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - Fn::Sub: states.${AWS::Region}.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /
+      Policies:
+      - PolicyName: StatesExecutionPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            Resource: '*'
+  DocumentStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString:
+        Fn::Sub:
+        - "{\n  \"Comment\": \"Documents Set Textract State Machine\",\n  \"StartAt\"\
+          : \"Convert PDF to Images\",\n  \"States\": {\n    \"Convert PDF to Images\"\
+          : {\n      \"Type\": \"Task\",\n      \"Resource\": \"${ConvertPdfToImages}\"\
+          ,\n      \"Next\": \"Analyze Document Images\"\n    },\n    \"Analyze Document\
+          \ Images\": {\n      \"Type\": \"Task\",\n      \"Resource\": \"${AnalyzeDocumentImages}\"\
+          ,\n      \"Next\": \"Correct Image Orientation\"\n    },\n    \"Correct\
+          \ Image Orientation\": {\n      \"Type\": \"Task\",\n      \"Resource\"\
+          : \"${CorrectImageOrientation}\",\n      \"Next\": \"Wait 5 seconds\"\n\
+          \    },\n    \"Wait 5 seconds\": {\n      \"Type\": \"Wait\",\n      \"\
+          Seconds\": 5,\n      \"Next\": \"Combine Images To Pdf\"\n    },\n    \"\
+          Combine Images To Pdf\": {\n      \"Type\": \"Task\",\n      \"Resource\"\
+          : \"${CombineImagesToPdf}\",\n      \"Next\": \"Start Document Analysis\"\
+          \n    },                \n    \"Start Document Analysis\": {\n      \"Type\"\
+          : \"Task\",\n      \"Resource\": \"${StartDocumentAnalysis}\",\n      \"\
+          Next\": \"Configure Count\",\n      \"Retry\": [ {\n          \"ErrorEquals\"\
+          : [ \"LimitExceededException\", \"ProvisionedThroughputExceededException\"\
+          ],\n          \"IntervalSeconds\": 10,\n          \"BackoffRate\": 2.0,\n\
+          \          \"MaxAttempts\": 3\n      }]\n    },\n    \"Configure Count\"\
+          : {\n        \"Type\": \"Pass\",\n        \"InputPath\": \"$.JobId\",\n\
+          \        \"Result\": {\n            \"count\": ${NumberOfIteration},\n \
+          \           \"index\": 0,\n            \"step\": 1\n        },\n       \
+          \ \"ResultPath\": \"$.iterator\",\n        \"Next\": \"Iterator\"\n    \
+          \  },\n      \"Iterator\": {\n          \"Type\": \"Task\",\n          \"\
+          Resource\": \"${Iterator}\",\n          \"ResultPath\": \"$.iterator\",\n\
+          \          \"Next\": \"Is Count Reached Or Succeeded\"\n      },\n     \
+          \ \"Is Count Reached Or Succeeded\": {\n          \"Type\": \"Choice\",\n\
+          \          \"Choices\": [\n              {\n                  \"Variable\"\
+          : \"$.iterator.continue\",\n                  \"BooleanEquals\": true,\n\
+          \                  \"Next\": \"Get Document Analysis\"\n              }\n\
+          \          ],\n          \"Default\": \"Finish Document Analysis\"\n   \
+          \   },\n      \"Get Document Analysis\": {\n          \"Type\": \"Task\"\
+          ,\n          \"Resource\": \"${GetDocumentAnalysis}\",\n          \"Next\"\
+          : \"Wait 10 seconds\"\n      },\n      \"Wait 10 seconds\": {\n        \"\
+          Type\": \"Wait\",\n        \"Seconds\": 10,\n        \"Next\": \"Iterator\"\
+          \n      },\n      \"Finish Document Analysis\": {\n        \"Type\": \"\
+          Pass\",\n        \"OutputPath\": \"$.resultKey\", \n        \"Next\": \"\
+          Generate Page Key Value Pair\"\n      }, \n      \"Generate Page Key Value\
+          \ Pair\": {\n        \"Type\": \"Task\",\n        \"Resource\": \"${GeneratePageKeyValuePair}\"\
+          ,\n        \"Next\": \"Json To Excel\",\n        \"Retry\": [ {\n      \
+          \      \"ErrorEquals\": [ \"SyntaxError\"],\n            \"IntervalSeconds\"\
+          : 10,\n            \"BackoffRate\": 2.0,\n            \"MaxAttempts\": 3\n\
+          \        }]\n      },\n      \"Json To Excel\": {\n        \"Type\": \"\
+          Task\",\n        \"Resource\": \"${JsonToExcel}\",\n        \"Next\": \"\
+          SuccessState\"\n      },\n      \"SuccessState\": {\n        \"Type\": \"\
+          Succeed\"\n      }\n  }\n}"
+        - StartDocumentAnalysis:
+            Fn::GetAtt:
+            - StartDocumentAnalysis
+            - Arn
+          ConvertPdfToImages:
+            Fn::GetAtt:
+            - ConvertPdfToImages
+            - Arn
+          AnalyzeDocumentImages:
+            Fn::GetAtt:
+            - AnalyzeDocumentImages
+            - Arn
+          GetDocumentAnalysis:
+            Fn::GetAtt:
+            - GetDocumentAnalysis
+            - Arn
+          Iterator:
+            Fn::GetAtt:
+            - Iterator
+            - Arn
+          JsonToExcel:
+            Fn::GetAtt:
+            - JsonToExcel
+            - Arn
+          GeneratePageKeyValuePair:
+            Fn::GetAtt:
+            - GeneratePageKeyValuePair
+            - Arn
+          CorrectImageOrientation:
+            Fn::GetAtt:
+            - CorrectImageOrientation
+            - Arn
+          CombineImagesToPdf:
+            Fn::GetAtt:
+            - CombineImagesToPdf
+            - Arn
+      RoleArn:
+        Fn::GetAtt:
+        - DocumentStatesExecutionRole
+        - Arn
+  PdfBucket:
+    Type: AWS::S3::Bucket
+  ImagesBucket:
+    Type: AWS::S3::Bucket
+  TextractBucket:
+    Type: AWS::S3::Bucket

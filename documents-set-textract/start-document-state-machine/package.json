@@ -7,6 +7,6 @@
   "author": "SAM CLI",
   "license": "MIT",
   "dependencies": {
-    "moment": "^2.24.0"
+    "moment": "^2.27.0"
   }
 }

@@ -4,6 +4,7 @@ Parameters:
   NumberOfIteration: 
     Type: Number
     Default: 30
+
 Description: >
   documents-set-textract
 Metadata:
@@ -20,7 +21,7 @@ Metadata:
     SourceCodeUrl: https://github.com/wongcyrus/DocumentsSetTextract
 Globals:
   Function:
-    Runtime: nodejs10.x
+    Runtime: nodejs12.x
     Timeout: 300
     Handler: app.lambdaHandler
     Tracing: Active
@@ -56,12 +57,12 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: pdf-to-images/
-      Runtime: nodejs8.10
       Timeout: 900
       MemorySize: 1024
       Policies: AWSLambdaExecute
       Layers:
-        - !Ref GhostscriptLayer
+        - arn:aws:lambda:us-east-1:764866452798:layer:ghostscript:8
+        - !Ref ImageMagickLayer 
 
   CombineImagesToPdf:
     Type: AWS::Serverless::Function
@@ -72,15 +73,6 @@ Resources:
       Policies: AWSLambdaExecute
       Layers:
         - !Ref PdfKitLayer
-
-  GhostscriptLayer:
-    Type: AWS::Serverless::LayerVersion
-    Properties:
-      ContentUri: layers/lambda-ghostscript
-      CompatibleRuntimes:
-        - nodejs8.10
-      LicenseInfo: 'Available under the MIT-0 license.'
-      RetentionPolicy: Delete    
 
   SharpLayer:
     Type: AWS::Serverless::LayerVersion
@@ -99,6 +91,19 @@ Resources:
         - nodejs10.x
       LicenseInfo: 'Available under the MIT-0 license.'
       RetentionPolicy: Delete   
+
+  ImageMagickLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: image-magick
+      Description: Static build of ImageMagick for AWS Linux 2,
+      ContentUri: layers/layer.zip
+      CompatibleRuntimes:
+        - nodejs10.x
+        - nodejs12.x
+        - python3.8
+      LicenseInfo: https://imagemagick.org/script/license.php
+      RetentionPolicy: Delete
       
   AnalyzeDocumentImages:
     Type: AWS::Serverless::Function

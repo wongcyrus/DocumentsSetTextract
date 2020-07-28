@@ -151,7 +151,7 @@ const convertPdf2Img = (input, output, page, callback) => {
         // .option('-dDownScaleFactor=2')
         .option('-dFirstPage=' + page)
         .option('-dLastPage=' + page)
-        .executablePath('/opt/gs')
+        .executablePath('/opt/bin/gs')
         .device('png16m')
         .output(output)
         .input(filepath)

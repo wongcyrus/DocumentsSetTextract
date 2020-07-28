@@ -1,0 +1,10 @@
+{
+  "name": "iterator",
+  "version": "1.0.0",
+  "description": "iterator",
+  "main": "app.js",
+  "repository": "https://github.com/wongcyrus/DocumentsSetTextract/tree/master/documents-set-textract",
+  "author": "SAM CLI",
+  "license": "MIT",
+  "dependencies": {}
+}
