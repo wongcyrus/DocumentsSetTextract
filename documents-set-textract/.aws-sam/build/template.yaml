@@ -40,8 +40,17 @@ Resources:
     Properties:
       CodeUri: StartDocumentStateMachine
       Policies:
-      - AWSLambdaExecute
       - arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess
+      - AWSLambdaBasicExecutionRole
+      - S3CrudPolicy:
+          BucketName:
+            Ref: ImagesBucket
+      - S3CrudPolicy:
+          BucketName:
+            Ref: TextractBucket
+      - S3CrudPolicy:
+          BucketName:
+            Fn::Sub: docsettextract-${AWS::AccountId}-pdfbucket
       Environment:
         Variables:
           StateMachineArn:
@@ -64,7 +73,17 @@ Resources:
       CodeUri: ConvertPdfToImages
       Timeout: 900
       MemorySize: 1024
-      Policies: AWSLambdaExecute
+      Policies:
+      - AWSLambdaBasicExecutionRole
+      - S3CrudPolicy:
+          BucketName:
+            Ref: ImagesBucket
+      - S3CrudPolicy:
+          BucketName:
+            Ref: TextractBucket
+      - S3CrudPolicy:
+          BucketName:
+            Fn::Sub: docsettextract-${AWS::AccountId}-pdfbucket
       Layers:
       - arn:aws:lambda:us-east-1:764866452798:layer:ghostscript:8
       - Ref: ImageMagickLayer
@@ -74,7 +93,17 @@ Resources:
       CodeUri: CombineImagesToPdf
       Timeout: 900
       MemorySize: 1024
-      Policies: AWSLambdaExecute
+      Policies:
+      - AWSLambdaBasicExecutionRole
+      - S3CrudPolicy:
+          BucketName:
+            Ref: ImagesBucket
+      - S3CrudPolicy:
+          BucketName:
+            Ref: TextractBucket
+      - S3CrudPolicy:
+          BucketName:
+            Fn::Sub: docsettextract-${AWS::AccountId}-pdfbucket
       Layers:
       - Ref: PdfKitLayer
   SharpLayer:
@@ -111,7 +140,16 @@ Resources:
       CodeUri: AnalyzeDocumentImages
       MemorySize: 1024
       Policies:
-      - AWSLambdaExecute
+      - AWSLambdaBasicExecutionRole
+      - S3CrudPolicy:
+          BucketName:
+            Ref: ImagesBucket
+      - S3CrudPolicy:
+          BucketName:
+            Ref: TextractBucket
+      - S3CrudPolicy:
+          BucketName:
+            Fn::Sub: docsettextract-${AWS::AccountId}-PdfBucket
       - arn:aws:iam::aws:policy/AmazonRekognitionReadOnlyAccess
   CorrectImageOrientation:
     Type: AWS::Serverless::Function
@@ -121,11 +159,22 @@ Resources:
       Layers:
       - Ref: SharpLayer
       Policies:
-      - AWSLambdaExecute
+      - AWSLambdaBasicExecutionRole
+      - S3CrudPolicy:
+          BucketName:
+            Ref: ImagesBucket
+      - S3CrudPolicy:
+          BucketName:
+            Ref: TextractBucket
+      - S3CrudPolicy:
+          BucketName:
+            Fn::Sub: docsettextract-${AWS::AccountId}-pdfbucket
   Iterator:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: Iterator
+      Policies:
+      - AWSLambdaBasicExecutionRole
   TextractCompletedTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -135,7 +184,16 @@ Resources:
     Properties:
       CodeUri: StartDocumentAnalysis
       Policies:
-      - AWSLambdaExecute
+      - AWSLambdaBasicExecutionRole
+      - S3CrudPolicy:
+          BucketName:
+            Ref: ImagesBucket
+      - S3CrudPolicy:
+          BucketName:
+            Ref: TextractBucket
+      - S3CrudPolicy:
+          BucketName:
+            Fn::Sub: docsettextract-${AWS::AccountId}-PdfBucket
       - arn:aws:iam::aws:policy/AmazonTextractFullAccess
       Environment:
         Variables:
@@ -150,7 +208,16 @@ Resources:
     Properties:
       CodeUri: GetDocumentAnalysis
       Policies:
-      - AWSLambdaExecute
+      - AWSLambdaBasicExecutionRole
+      - S3CrudPolicy:
+          BucketName:
+            Ref: ImagesBucket
+      - S3CrudPolicy:
+          BucketName:
+            Ref: TextractBucket
+      - S3CrudPolicy:
+          BucketName:
+            Fn::Sub: docsettextract-${AWS::AccountId}-pdfbucket
       - arn:aws:iam::aws:policy/AmazonTextractFullAccess
   GeneratePageKeyValuePair:
     Type: AWS::Serverless::Function
@@ -158,14 +225,32 @@ Resources:
       CodeUri: GeneratePageKeyValuePair
       MemorySize: 2048
       Policies:
-      - AWSLambdaExecute
+      - AWSLambdaBasicExecutionRole
+      - S3CrudPolicy:
+          BucketName:
+            Ref: ImagesBucket
+      - S3CrudPolicy:
+          BucketName:
+            Ref: TextractBucket
+      - S3CrudPolicy:
+          BucketName:
+            Fn::Sub: docsettextract-${AWS::AccountId}-pdfbucket
   JsonToExcel:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: JsonToExcel
       MemorySize: 2048
       Policies:
-      - AWSLambdaExecute
+      - AWSLambdaBasicExecutionRole
+      - S3CrudPolicy:
+          BucketName:
+            Ref: ImagesBucket
+      - S3CrudPolicy:
+          BucketName:
+            Ref: TextractBucket
+      - S3FullAccessPolicy:
+          BucketName:
+            Fn::Sub: docsettextract-${AWS::AccountId}-pdfbucket
   TextractExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -208,8 +293,42 @@ Resources:
           Statement:
           - Effect: Allow
             Action:
+            - sns:Publish
+            Resource:
+            - Ref: DocumentsSetTextractCompletionSNSTopic
+          - Effect: Allow
+            Action:
             - lambda:InvokeFunction
-            Resource: '*'
+            Resource:
+            - Fn::GetAtt:
+              - StartDocumentAnalysis
+              - Arn
+            - Fn::GetAtt:
+              - ConvertPdfToImages
+              - Arn
+            - Fn::GetAtt:
+              - AnalyzeDocumentImages
+              - Arn
+            - Fn::GetAtt:
+              - GetDocumentAnalysis
+              - Arn
+            - Fn::GetAtt:
+              - Iterator
+              - Arn
+            - Fn::GetAtt:
+              - JsonToExcel
+              - Arn
+            - Fn::GetAtt:
+              - GeneratePageKeyValuePair
+              - Arn
+            - Fn::GetAtt:
+              - CorrectImageOrientation
+              - Arn
+            - Fn::GetAtt:
+              - CombineImagesToPdf
+              - Arn
+  DocumentsSetTextractCompletionSNSTopic:
+    Type: AWS::SNS::Topic
   DocumentStateMachine:
     Type: AWS::StepFunctions::StateMachine
     Properties:
@@ -258,8 +377,12 @@ Resources:
           : 10,\n            \"BackoffRate\": 2.0,\n            \"MaxAttempts\": 3\n\
           \        }]\n      },\n      \"Json To Excel\": {\n        \"Type\": \"\
           Task\",\n        \"Resource\": \"${JsonToExcel}\",\n        \"Next\": \"\
-          SuccessState\"\n      },\n      \"SuccessState\": {\n        \"Type\": \"\
-          Succeed\"\n      }\n  }\n}"
+          Publish to SNS\"\n      },\n      \"Publish to SNS\": {\n        \"Type\"\
+          : \"Task\",\n        \"Resource\": \"arn:aws:states:::sns:publish\",\n \
+          \       \"Parameters\": {\n         \"TopicArn\":\"${DocumentsSetTextractCompletionSNSTopic}\"\
+          ,\n         \"Message.$\": \"$\"\n        },\n        \"Next\": \"SuccessState\"\
+          \n       }, \n      \"SuccessState\": {\n        \"Type\": \"Succeed\"\n\
+          \      }\n  }\n}"
         - StartDocumentAnalysis:
             Fn::GetAtt:
             - StartDocumentAnalysis
@@ -296,13 +419,23 @@ Resources:
             Fn::GetAtt:
             - CombineImagesToPdf
             - Arn
+          DocumentsSetTextractCompletionSNSTopic:
+            Ref: DocumentsSetTextractCompletionSNSTopic
       RoleArn:
         Fn::GetAtt:
         - DocumentStatesExecutionRole
         - Arn
   PdfBucket:
     Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: docsettextract-${AWS::AccountId}-pdfbucket
   ImagesBucket:
     Type: AWS::S3::Bucket
   TextractBucket:
     Type: AWS::S3::Bucket
+Outputs:
+  DocumentsSetTextractCompletionSNSTopic:
+    Description: Documents Set Textract Completion SNS Topic
+    Value:
+      Ref: DocumentsSetTextractCompletionSNSTopic

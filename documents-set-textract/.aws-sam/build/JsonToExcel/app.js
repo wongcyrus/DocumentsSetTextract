@@ -39,7 +39,35 @@ exports.lambdaHandler = async(event, context) => {
         Body: data,
         ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     }).promise();
+    event.resultBucket = process.env['TextractBucket'];
     event.excelKey = excelKey;
+    
+    event.resultUrl = s3.getSignedUrl('getObject', {
+        Bucket: process.env['TextractBucket'],
+        Key: excelKey,
+        Expires: 86400 //7 days
+    });
+
+    const sourcePdf = await s3.getObjectTagging({
+        Bucket: event.srcBucket,
+        Key: event.resultKey.replace(".json", ".pdf")
+    }).promise();
+
+    const tags = sourcePdf.TagSet.reduce(
+        (dict, el, index) => (dict[el.Key] = el.Value, dict), {}
+    );
+    if (tags["sender"] && tags["receiver"] && tags["subject"] && tags["messageId"]) {
+        event.sender = tags["sender"];
+        event.receiver = tags["receiver"];
+        event.subject = tags["subject"];
+        event.messageId = tags["messageId"];
+    }
+    else{
+        event.sender = "";
+        event.receiver = "";
+        event.subject = "";
+        event.messageId = "";
+    }
     return event;
 };
 
@@ -62,7 +90,7 @@ const getDocumentPairs = (keyValuePairJson, pages) => {
     documentValuePairs.push(individualKeyValue);
     documentConfidencePairs.push(individualConfidenceValue);
     return { documentValuePairs, documentConfidencePairs };
-}
+};
 
 const popularPageSheet = (pageValueWorkSheet, pageConflidenceWorkSheet, keys, pages, keyValuePairJson) => {
     for (let x = 0; x < keys.length; x++) {
@@ -78,7 +106,7 @@ const popularPageSheet = (pageValueWorkSheet, pageConflidenceWorkSheet, keys, pa
                 pageConflidenceWorkSheet.cell(y + 2, x + 1).number(data[0].valueConfidence);
             }
         }
-}
+};
 
 const popularDocumentSheet = (documentValueWorkSheet, documentConflidenceWorkSheet, keys, pages, keyValuePairJson) => {
     let { documentValuePairs, documentConfidencePairs } = getDocumentPairs(keyValuePairJson, pages);
@@ -92,7 +120,7 @@ const popularDocumentSheet = (documentValueWorkSheet, documentConflidenceWorkShe
             documentValueWorkSheet.cell(y + 2, x + 1).string(documentValuePairs[y].get(keys[x]) || "");
             documentConflidenceWorkSheet.cell(y + 2, x + 1).number(documentConfidencePairs[y].get(keys[x]) || 0);
         }
-}
+};
 
 const writeExcel = (workbook, filePath) => {
     return new Promise((resolve, reject) => {
@@ -105,7 +133,7 @@ const writeExcel = (workbook, filePath) => {
             }
         });
     });
-}
+};
 
 const s3download = (bucketName, keyName, localDest) => {
     if (typeof localDest == 'undefined') {
@@ -114,8 +142,8 @@ const s3download = (bucketName, keyName, localDest) => {
     let params = {
         Bucket: bucketName,
         Key: keyName
-    }
-    let file = fs.createWriteStream(localDest)
+    };
+    let file = fs.createWriteStream(localDest);
 
     return new Promise((resolve, reject) => {
         s3.getObject(params).createReadStream()
@@ -124,6 +152,6 @@ const s3download = (bucketName, keyName, localDest) => {
             })
             .on('error', (error) => {
                 return reject(error);
-            }).pipe(file)
+            }).pipe(file);
     });
 };

@@ -29,7 +29,7 @@ exports.lambdaHandler = async(event, context) => {
             Body: data,
             ContentType: "application/json"
         }).promise();
-        event.resultKey = { resultKey };
+        event.resultKey = { resultKey, srcBucket: event.srcBucket };
     }
     return event;
 };

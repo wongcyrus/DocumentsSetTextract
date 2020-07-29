@@ -7,7 +7,7 @@ exports.lambdaHandler = async(event, context) => {
 
     const images = [...Array(event.numberOfImages).keys()].map((x, y) => event.imagePrefix + (y + 1) + ".png");
 
-    const { resultKeys, detectTexts } = await detectText(images);
+    const { detectTexts } = await detectText(images);
 
     const markerText = getWordAtTopLeft(detectTexts[0]);
 
@@ -32,7 +32,7 @@ const getWordAtTopLeft = detectResult => {
         return firstWord.DetectedText;
     }
     return "";
-}
+};
 
 const detectText = async images => {
     let resultKeys = [];
@@ -59,4 +59,4 @@ const detectText = async images => {
         detectTexts.push(result);
     }
     return { resultKeys, detectTexts };
-}
+};

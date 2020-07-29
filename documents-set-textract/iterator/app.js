@@ -14,5 +14,5 @@ exports.lambdaHandler = async(event, context) => {
             step,
             count,
             continue: index < count
-        }
+        };
 };
