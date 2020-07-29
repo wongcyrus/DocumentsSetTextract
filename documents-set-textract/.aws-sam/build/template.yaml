@@ -439,3 +439,7 @@ Outputs:
     Description: Documents Set Textract Completion SNS Topic
     Value:
       Ref: DocumentsSetTextractCompletionSNSTopic
+  PdfBucket:
+    Description: Upload PDF to trigger Documents Set Textract.
+    Value:
+      Ref: PdfBucket
