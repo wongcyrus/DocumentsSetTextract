@@ -1,10 +1,12 @@
 const AWS = require('aws-sdk');
 const s3 = new AWS.S3();
 const fs = require('fs');
+const path = require('path');
 
 exports.lambdaHandler = async(event, context) => {
     const key = event.resultKey;
     const filePath = "/tmp/" + key;
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
     await s3download(process.env['TextractBucket'], key, filePath);
 
     const rawdata = fs.readFileSync(filePath);

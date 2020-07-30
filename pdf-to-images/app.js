@@ -13,7 +13,7 @@ exports.lambdaHandler = async(event, context) => {
 
     const destKeyPrefix = srcKey.replace(/\s/g, '_').replace(".pdf", "");
     const outputdir = "/tmp/" + destKeyPrefix;
-    fs.existsSync(outputdir) || fs.mkdirSync(outputdir);
+    fs.existsSync(outputdir) || fs.mkdirSync(outputdir, { recursive: true });
     const filePath = "/tmp/" + srcKey.replace(/\s/g, '_');
     await s3download(srcBucket, srcKey, filePath);
 

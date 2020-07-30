@@ -1,4 +1,5 @@
 const AWS = require('aws-sdk');
+const crypto = require('crypto');
 const textract = new AWS.Textract();
 
 exports.lambdaHandler = async(event, context) => {
@@ -16,7 +17,7 @@ exports.lambdaHandler = async(event, context) => {
             "FORMS",
             /* more items */
         ],
-        JobTag: key.replace(/\s/g, ''),
+        JobTag: crypto.createHash('md5').update(key).digest("hex"),
         NotificationChannel: {
             RoleArn: process.env["TextractExecutionRoleArn"],
             /* required */
@@ -30,5 +31,4 @@ exports.lambdaHandler = async(event, context) => {
     result.key = key;
     result.srcBucket = event.srcBucket;
     return result;
-
 };

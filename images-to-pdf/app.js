@@ -4,6 +4,7 @@ const fs = require('fs');
 const { promisify } = require('util');
 const PDFDocument = require('/opt/node_modules/pdfkit');
 const readFile = promisify(fs.readFile);
+const path = require('path');
 
 exports.lambdaHandler = async(event, context) => {
     console.log(JSON.stringify(event));
@@ -11,7 +12,9 @@ exports.lambdaHandler = async(event, context) => {
 
     await Promise.all(images.map(c => s3download(process.env['ImagesBucket'], c.key, c.file)));
 
+    
     const pdf = "/tmp/" + event.srcKey;
+    fs.mkdirSync(path.dirname(pdf), { recursive: true });
     await combineImagesToPdf(images, pdf);
     const stats = fs.statSync(pdf);
     console.log('File Size in Bytes:- ' + stats.size);
@@ -61,8 +64,8 @@ const s3download = (bucketName, keyName, localDest) => {
     let params = {
         Bucket: bucketName,
         Key: keyName
-    }
-    let file = fs.createWriteStream(localDest)
+    };
+    let file = fs.createWriteStream(localDest);
 
     return new Promise((resolve, reject) => {
         s3.getObject(params).createReadStream()

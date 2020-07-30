@@ -1,6 +1,7 @@
 const AWS = require('aws-sdk');
 const stepfunctions = new AWS.StepFunctions();
 const moment = require('moment');
+const crypto = require('crypto');
 
 exports.lambdaHandler = async(event, context) => {
     const bucket = event.Records[0].s3.bucket.name;
@@ -13,7 +14,7 @@ exports.lambdaHandler = async(event, context) => {
             bucket,
             key
         }),
-        name: moment().format('MMMM-Do-YYYY-h-mm-ss-a') + "-" + key.replace(/\s/g, '')
+        name: moment().format('MMMM-Do-YYYY-h-mm-ss-a') + "-" + crypto.createHash('md5').update(key).digest("hex")
     };
     const result = await stepfunctions.startExecution(params).promise();
 

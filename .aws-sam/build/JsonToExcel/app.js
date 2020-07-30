@@ -4,10 +4,12 @@ const fs = require('fs');
 const { promisify } = require('util');
 const readFile = promisify(fs.readFile);
 const xl = require('excel4node');
+const path = require('path');
 
 exports.lambdaHandler = async(event, context) => {
     const key = event.keyValuePairJson;
     const filePath = "/tmp/" + key;
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
     await s3download(process.env['TextractBucket'], key, filePath);
 
     const rawdata = fs.readFileSync(filePath);
@@ -30,6 +32,7 @@ exports.lambdaHandler = async(event, context) => {
 
     const excelKey = event.resultKey.replace(".json", ".xlsx");
     const excelFilePath = '/tmp/' + excelKey;
+
     await writeExcel(wb, excelFilePath);
 
     const data = await readFile(excelFilePath);

@@ -58,7 +58,7 @@ Pdf2Img.prototype.convert = (input, callbackreturn) => {
 
     // Create output dir if it doesn't exists
     if (!isDirExists(options.outputdir)) {
-        fs.mkdirSync(options.outputdir);
+        fs.mkdirSync(options.outputdir, { recursive: true });
     }
 
     // Set output name
