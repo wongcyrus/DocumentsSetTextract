@@ -1,0 +1,80 @@
+{
+    "Comment": "Documents Set Textract State Machine",
+    "StartAt": "Convert PDF to Images",
+    "States": {
+      "Convert PDF to Images": {
+        "Type": "Task",
+        "Resource": "${ConvertPdfToImages}",
+        "Next": "Analyze Document Images"
+      },
+      "Analyze Document Images": {
+        "Type": "Task",
+        "Resource": "${AnalyzeDocumentImages}",
+        "Next": "Correct Image Orientation"
+      },
+      "Correct Image Orientation": {
+        "Type": "Task",
+        "Resource": "${CorrectImageOrientation}",
+        "Next": "Wait 5 seconds"
+      },
+      "Wait 5 seconds": {
+        "Type": "Wait",
+        "Seconds": 5,
+        "Next": "Combine Images To Pdf"
+      },
+      "Combine Images To Pdf": {
+        "Type": "Task",
+        "Resource": "${CombineImagesToPdf}",
+        "Next": "Start Document Analysis"
+      },
+      "Start Document Analysis": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::sqs:sendMessage.waitForTaskToken",
+        "TimeoutSeconds": 600,
+        "OutputPath": "$",
+        "Parameters": {
+          "QueueUrl": "${AsynTextractQueue}",
+          "MessageGroupId": "1",
+          "MessageBody": {
+              "Message.$":"$",
+              "TaskToken.$": "$$.Task.Token"
+           }
+        },        
+        "Next": "Finish Document Analysis"
+      },
+      "Finish Document Analysis": {
+        "Type": "Pass",
+        "OutputPath": "$",
+        "Next": "Generate Page Key Value Pair"
+      },
+      "Generate Page Key Value Pair": {
+        "Type": "Task",
+        "Resource": "${GeneratePageKeyValuePair}",
+        "Next": "Json To Excel",
+        "Retry": [{
+          "ErrorEquals": ["SyntaxError"],
+          "IntervalSeconds": 10,
+          "BackoffRate": 2.0,
+          "MaxAttempts": 3
+        }]
+      },
+      "Json To Excel": {
+        "Type": "Task",
+        "Resource": "${JsonToExcel}",
+        "Next": "Publish to SNS"
+      },
+      "Publish to SNS": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::sns:publish",
+        "Parameters": {
+          "TopicArn": "${DocumentsSetTextractCompletionSNSTopic}",
+          "Message.$": "$"
+        },
+        "Next": "SuccessState"
+      },
+      "SuccessState": {
+        "Type": "Succeed"
+      }
+    }
+  }
+  

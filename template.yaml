@@ -155,18 +155,10 @@ Resources:
             BucketName: !Ref TextractBucket  
         - S3CrudPolicy:
             BucketName: !Sub "docsettextract-${AWS::AccountId}-pdfbucket"          
-  Iterator:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: iterator/
-      Policies: 
-        - AWSLambdaBasicExecutionRole
-    
+
   TextractCompletedTopic:
     Type: AWS::SNS::Topic
-    Properties:
-      TopicName: "TextractCompletionTopic"
-      
+
   StartDocumentAnalysis:
     Type: AWS::Serverless::Function
     Properties:
@@ -179,26 +171,22 @@ Resources:
             BucketName: !Ref TextractBucket  
         - S3CrudPolicy:
             BucketName: !Sub "docsettextract-${AWS::AccountId}-PdfBucket"
+        - DynamoDBWritePolicy:
+            TableName: !Ref SessionTable            
         - arn:aws:iam::aws:policy/AmazonTextractFullAccess
       Environment:
         Variables:
           TextractCompletedTopicArn: !Ref TextractCompletedTopic
           TextractExecutionRoleArn: !GetAtt [ TextractExecutionRole, Arn ] 
+          AsynTextractQueue: !Ref AsynTextractQueue
+          SessionTable: !Ref SessionTable
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt AsynTextractQueue.Arn
+            BatchSize: 1          
           
-  GetDocumentAnalysis:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: get-document-analysis/  
-      Policies: 
-        - AWSLambdaBasicExecutionRole
-        - S3CrudPolicy:
-            BucketName: !Ref ImagesBucket
-        - S3CrudPolicy:
-            BucketName: !Ref TextractBucket  
-        - S3CrudPolicy:
-            BucketName: !Sub "docsettextract-${AWS::AccountId}-pdfbucket"  
-        - arn:aws:iam::aws:policy/AmazonTextractFullAccess
-
   GeneratePageKeyValuePair:
     Type: AWS::Serverless::Function
     Properties:
@@ -226,7 +214,68 @@ Resources:
             BucketName: !Ref TextractBucket  
         - S3FullAccessPolicy:
             BucketName: !Sub "docsettextract-${AWS::AccountId}-pdfbucket"  
-            
+
+  SendTaskCompleteFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: send-task-complete/  
+      Policies:
+        - AWSLambdaBasicExecutionRole      
+        - Version: '2012-10-17' # Policy Document
+          Statement:
+            - Effect: Allow
+              Action:
+               - states:SendTaskSuccess
+               - states:SendTaskFailure
+              Resource: !Ref DocumentStateMachine
+        - DynamoDBReadPolicy:
+            TableName: !Ref SessionTable
+        - S3CrudPolicy:
+            BucketName: !Ref TextractBucket  
+        - S3CrudPolicy:
+            BucketName: !Sub "docsettextract-${AWS::AccountId}-pdfbucket"  
+        - arn:aws:iam::aws:policy/AmazonTextractFullAccess            
+      Environment:
+        Variables:
+          SessionTable: !Ref SessionTable            
+      Events:
+        SNSEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref TextractCompletedTopic
+  
+  SessionTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: 
+        - 
+          AttributeName: "id"
+          AttributeType: "S"
+      KeySchema: 
+        - 
+          AttributeName: "id"
+          KeyType: "HASH"
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+        
+    
+  AsynTextractQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      RedrivePolicy: 
+        deadLetterTargetArn: !GetAtt AsynTextractDeadLetterQueue.Arn
+        maxReceiveCount: 1
+      VisibilityTimeout: 300        
+  AsynTextractDeadLetterQueue: 
+    Type: AWS::SQS::Queue
+    Properties: 
+      FifoQueue: true
+      ContentBasedDeduplication: true      
+      
   TextractExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -279,147 +328,32 @@ Resources:
                   - !GetAtt [ StartDocumentAnalysis, Arn ]
                   - !GetAtt [ ConvertPdfToImages, Arn ]
                   - !GetAtt [ AnalyzeDocumentImages, Arn ]
-                  - !GetAtt [ GetDocumentAnalysis, Arn ]
-                  - !GetAtt [ Iterator, Arn ]
                   - !GetAtt [ JsonToExcel, Arn ]
                   - !GetAtt [ GeneratePageKeyValuePair, Arn ]
                   - !GetAtt [ CorrectImageOrientation, Arn ]
                   - !GetAtt [ CombineImagesToPdf, Arn ]
-      
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource: !GetAtt AsynTextractQueue.Arn
+                
   DocumentsSetTextractCompletionSNSTopic:
     Type: AWS::SNS::Topic
       
   DocumentStateMachine:
-    Type: AWS::StepFunctions::StateMachine
+    Type: AWS::Serverless::StateMachine
     Properties:
-      DefinitionString:
-        !Sub
-          - |-
-            {
-              "Comment": "Documents Set Textract State Machine",
-              "StartAt": "Convert PDF to Images",
-              "States": {
-                "Convert PDF to Images": {
-                  "Type": "Task",
-                  "Resource": "${ConvertPdfToImages}",
-                  "Next": "Analyze Document Images"
-                },
-                "Analyze Document Images": {
-                  "Type": "Task",
-                  "Resource": "${AnalyzeDocumentImages}",
-                  "Next": "Correct Image Orientation"
-                },
-                "Correct Image Orientation": {
-                  "Type": "Task",
-                  "Resource": "${CorrectImageOrientation}",
-                  "Next": "Wait 5 seconds"
-                },
-                "Wait 5 seconds": {
-                  "Type": "Wait",
-                  "Seconds": 5,
-                  "Next": "Combine Images To Pdf"
-                },
-                "Combine Images To Pdf": {
-                  "Type": "Task",
-                  "Resource": "${CombineImagesToPdf}",
-                  "Next": "Start Document Analysis"
-                },                
-                "Start Document Analysis": {
-                  "Type": "Task",
-                  "Resource": "${StartDocumentAnalysis}",
-                  "Next": "Configure Count",
-                  "Retry": [ {
-                      "ErrorEquals": [ "LimitExceededException", "ProvisionedThroughputExceededException"],
-                      "IntervalSeconds": 10,
-                      "BackoffRate": 2.0,
-                      "MaxAttempts": 3
-                  }]
-                },
-                "Configure Count": {
-                    "Type": "Pass",
-                    "InputPath": "$.JobId",
-                    "Result": {
-                        "count": ${NumberOfIteration},
-                        "index": 0,
-                        "step": 1
-                    },
-                    "ResultPath": "$.iterator",
-                    "Next": "Iterator"
-                  },
-                  "Iterator": {
-                      "Type": "Task",
-                      "Resource": "${Iterator}",
-                      "ResultPath": "$.iterator",
-                      "Next": "Is Count Reached Or Succeeded"
-                  },
-                  "Is Count Reached Or Succeeded": {
-                      "Type": "Choice",
-                      "Choices": [
-                          {
-                              "Variable": "$.iterator.continue",
-                              "BooleanEquals": true,
-                              "Next": "Get Document Analysis"
-                          }
-                      ],
-                      "Default": "Finish Document Analysis"
-                  },
-                  "Get Document Analysis": {
-                      "Type": "Task",
-                      "Resource": "${GetDocumentAnalysis}",
-                      "Next": "Wait 10 seconds"
-                  },
-                  "Wait 10 seconds": {
-                    "Type": "Wait",
-                    "Seconds": 10,
-                    "Next": "Iterator"
-                  },
-                  "Finish Document Analysis": {
-                    "Type": "Pass",
-                    "OutputPath": "$.resultKey", 
-                    "Next": "Generate Page Key Value Pair"
-                  }, 
-                  "Generate Page Key Value Pair": {
-                    "Type": "Task",
-                    "Resource": "${GeneratePageKeyValuePair}",
-                    "Next": "Json To Excel",
-                    "Retry": [ {
-                        "ErrorEquals": [ "SyntaxError"],
-                        "IntervalSeconds": 10,
-                        "BackoffRate": 2.0,
-                        "MaxAttempts": 3
-                    }]
-                  },
-                  "Json To Excel": {
-                    "Type": "Task",
-                    "Resource": "${JsonToExcel}",
-                    "Next": "Publish to SNS"
-                  },
-                  "Publish to SNS": {
-                    "Type": "Task",
-                    "Resource": "arn:aws:states:::sns:publish",
-                    "Parameters": {
-                     "TopicArn":"${DocumentsSetTextractCompletionSNSTopic}",
-                     "Message.$": "$"
-                    },
-                    "Next": "SuccessState"
-                   }, 
-                  "SuccessState": {
-                    "Type": "Succeed"
-                  }
-              }
-            }
-          - 
-            StartDocumentAnalysis: !GetAtt [ StartDocumentAnalysis, Arn ]
-            ConvertPdfToImages: !GetAtt [ ConvertPdfToImages, Arn ]
-            AnalyzeDocumentImages: !GetAtt [ AnalyzeDocumentImages, Arn ]
-            GetDocumentAnalysis: !GetAtt [ GetDocumentAnalysis, Arn ]
-            Iterator: !GetAtt [ Iterator, Arn ]
-            JsonToExcel: !GetAtt [ JsonToExcel, Arn ]
-            GeneratePageKeyValuePair: !GetAtt [ GeneratePageKeyValuePair, Arn ]
-            CorrectImageOrientation: !GetAtt [ CorrectImageOrientation, Arn ]
-            CombineImagesToPdf: !GetAtt [ CombineImagesToPdf, Arn ]
-            DocumentsSetTextractCompletionSNSTopic: !Ref DocumentsSetTextractCompletionSNSTopic
-      RoleArn: !GetAtt [ DocumentStatesExecutionRole, Arn ]
+      DefinitionUri: statemachine/docset-textract.asl.json
+      DefinitionSubstitutions:
+        AsynTextractQueue: !Ref AsynTextractQueue
+        ConvertPdfToImages: !GetAtt [ ConvertPdfToImages, Arn ]
+        AnalyzeDocumentImages: !GetAtt [ AnalyzeDocumentImages, Arn ]
+        JsonToExcel: !GetAtt [ JsonToExcel, Arn ]
+        GeneratePageKeyValuePair: !GetAtt [ GeneratePageKeyValuePair, Arn ]
+        CorrectImageOrientation: !GetAtt [ CorrectImageOrientation, Arn ]
+        CombineImagesToPdf: !GetAtt [ CombineImagesToPdf, Arn ]
+        DocumentsSetTextractCompletionSNSTopic: !Ref DocumentsSetTextractCompletionSNSTopic
+      Role: !GetAtt [ DocumentStatesExecutionRole, Arn ]
       
   PdfBucket:
     Type: AWS::S3::Bucket
