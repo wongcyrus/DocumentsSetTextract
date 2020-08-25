@@ -11,22 +11,22 @@ exports.lambdaHandler = async (event, context) => {
   const srcBucket = event.bucket;
   const srcKey = event.key;
 
-  const destKeyPrefix = srcKey.replace(/\s/g, "_").replace(".pdf", "");
+  const destKeyPrefix = decodeURI(srcKey).replace(".pdf", "");
   const outputdir = "/tmp/" + destKeyPrefix;
   fs.existsSync(outputdir) || fs.mkdirSync(outputdir, { recursive: true });
-  const filePath = "/tmp/" + srcKey.replace(/\s/g, "_");
+  const filePath = "/tmp/" + decodeURI(srcKey);
   await s3download(srcBucket, srcKey, filePath);
 
   const stats = fs.statSync(filePath);
   console.log("File Size in Bytes:- " + stats.size);
-  const results = await convert2images(filePath, outputdir);
+  const results = await convert2images(filePath, "/tmp");
   console.log(results);
 
   const s3Results = await Promise.all(
     results.map(async (c) => {
       console.log(c);
       let data = await readFile(c.path);
-      let key = c.path.replace("/tmp/", "");
+      let key = srcKey.replace(".pdf", "") + "/" + c.path.replace("/tmp/", "");
       return await s3
         .putObject({
           Bucket: process.env["ImagesBucket"],
@@ -43,7 +43,8 @@ exports.lambdaHandler = async (event, context) => {
   return {
     srcBucket,
     srcKey,
-    imagePrefix: images[0].replace("1.png", ""),
+    imagePrefix:
+      srcKey.replace(".pdf", "") + "/" + images[0].replace("1.png", ""),
     numberOfImages: images.length,
   };
 };

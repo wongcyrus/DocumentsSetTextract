@@ -17,7 +17,7 @@ Metadata:
 Globals:
   Function:
     Runtime: nodejs12.x
-    Timeout: 300
+    Timeout: 600
     Handler: app.lambdaHandler
     Tracing: Active
     Environment:
@@ -59,7 +59,7 @@ Resources:
     Properties:
       CodeUri: pdf-to-images/
       Timeout: 900
-      MemorySize: 1024
+      MemorySize: 2048
       Policies: 
         - AWSLambdaBasicExecutionRole
         - S3CrudPolicy:
@@ -124,6 +124,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: analyze-document-images/
+      Timeout: 900
       MemorySize: 1024
       Policies: 
         - AWSLambdaBasicExecutionRole
@@ -139,7 +140,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: correct-image-orientation/
-      MemorySize: 1024
+      MemorySize: 2048
       Layers:
         - !Ref SharpLayer       
       Policies: 

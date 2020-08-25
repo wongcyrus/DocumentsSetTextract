@@ -67,21 +67,13 @@ Pdf2Img.prototype.convert = async (input) => {
 
   const pageCount = await getPageCount(input);
   console.log("pageCount:" + pageCount);
-  const pageToImages = await Promise.all(
-    [...Array(pageCount).keys()].map(async (page) => {
-      let inputStream = fs.createReadStream(input);
-      page = parseInt(page, 10) + 1;
-      let outputFile =
-        options.outputdir +
-        options.outputname +
-        "_" +
-        page +
-        "." +
-        options.type;
 
-      return await convertPdf2Img(inputStream, outputFile, page);
-    })
-  );
+  let inputStream = fs.createReadStream(input);
+
+  let outputFile =
+    options.outputdir + options.outputname + "-%d." + options.type;
+
+  const pageToImages = await convertPdf2Img(inputStream, outputFile, pageCount);
   console.log(pageToImages);
   return pageToImages;
 };
@@ -122,7 +114,7 @@ const getPageCount = async (input) => {
     }
   });
 };
-const convertPdf2Img = async (input, output, page) =>
+const convertPdf2Img = async (input, output, pageCount) =>
   new Promise((resolve, reject) => {
     let filepath;
     if (input.path) {
@@ -133,15 +125,12 @@ const convertPdf2Img = async (input, output, page) =>
         message: "Invalid input file path.",
       });
     }
-    console.log(`input:${filepath}, output:${output}, page: ${page}`);
+    console.log(`input:${filepath}, output:${output}`);
 
     gs()
       .batch()
       .nopause()
-      .option("-r" + options.density)
-      // .option('-dDownScaleFactor=2')
-      .option("-dFirstPage=" + page)
-      .option("-dLastPage=" + page)
+      .resolution(options.density)
       .executablePath("/opt/bin/gs")
       .device("png16m")
       .output(output)
@@ -156,20 +145,16 @@ const convertPdf2Img = async (input, output, page) =>
           });
         }
         try {
-          if (!(fs.statSync(output)["size"] / 1000)) {
-            return reject({
-              result: "error",
-              message: "Zero sized output image detected.",
-            });
-          }
-
-          let results = {
-            page: page,
-            name: path.basename(output),
-            size: fs.statSync(output)["size"] / 1000.0,
-            path: output,
-          };
-
+          const results = Array.from(Array(pageCount), (_, i) => i + 1).map(
+            (page) => {
+              return {
+                page: page,
+                name: path.basename(output).replace("%d", page),
+                size: fs.statSync(output.replace("%d", page))["size"] / 1000.0,
+                path: output.replace("%d", page),
+              };
+            }
+          );
           return resolve(results);
         } catch (e) {
           return reject(e);
