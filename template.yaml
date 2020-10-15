@@ -260,17 +260,12 @@ Resources:
   AsynTextractQueue:
     Type: AWS::SQS::Queue
     Properties:
-      FifoQueue: true
-      ContentBasedDeduplication: true
       RedrivePolicy: 
         deadLetterTargetArn: !GetAtt AsynTextractDeadLetterQueue.Arn
         maxReceiveCount: 1
-      VisibilityTimeout: 300        
+      VisibilityTimeout: 600        
   AsynTextractDeadLetterQueue: 
     Type: AWS::SQS::Queue
-    Properties: 
-      FifoQueue: true
-      ContentBasedDeduplication: true      
       
   TextractExecutionRole:
     Type: AWS::IAM::Role
@@ -339,7 +334,69 @@ Resources:
   DocumentStateMachine:
     Type: AWS::Serverless::StateMachine
     Properties:
-      DefinitionUri: statemachine/docset-textract.asl.json
+      Definition: 
+        Comment: Documents Set Textract State Machine
+        StartAt: ConvertPDFToImages
+        States:
+          ConvertPDFToImages:
+            Type: Task
+            Resource: ${ConvertPdfToImages}
+            Next: AnalyzeDocumentImages
+          AnalyzeDocumentImages:
+            Type: Task
+            Resource: ${AnalyzeDocumentImages}
+            Next: CorrectImageOrientation
+          CorrectImageOrientation:
+            Type: Task
+            Resource: ${CorrectImageOrientation}
+            Next: WaitFor5seconds
+          WaitFor5seconds:
+            Type: Wait
+            Seconds: 5
+            Next: CombineImagesToPdf
+          CombineImagesToPdf:
+            Type: Task
+            Resource: ${CombineImagesToPdf}
+            Next: StartDocumentAnalysis
+          StartDocumentAnalysis:
+            Type: Task
+            Resource: arn:aws:states:::sqs:sendMessage.waitForTaskToken
+            TimeoutSeconds: 600
+            OutputPath: $
+            Parameters:
+              QueueUrl: ${AsynTextractQueue}
+              MessageGroupId: '1'
+              MessageBody:
+                Message.$: $
+                TaskToken.$: $$.Task.Token
+            Next: FinishDocumentAnalysis
+          FinishDocumentAnalysis:
+            Type: Pass
+            OutputPath: $
+            Next: GeneratePageKeyValuePair
+          GeneratePageKeyValuePair:
+            Type: Task
+            Resource: ${GeneratePageKeyValuePair}
+            Next: JsonToExcel
+            Retry:
+            - ErrorEquals:
+              - SyntaxError
+              IntervalSeconds: 10
+              BackoffRate: 2.0
+              MaxAttempts: 3
+          JsonToExcel:
+            Type: Task
+            Resource: ${JsonToExcel}
+            Next: PublishToSNS
+          PublishToSNS:
+            Type: Task
+            Resource: arn:aws:states:::sns:publish
+            Parameters:
+              TopicArn: ${DocumentsSetTextractCompletionSNSTopic}
+              Message.$: $
+            Next: SuccessState
+          SuccessState:
+            Type: Succeed
       DefinitionSubstitutions:
         AsynTextractQueue: !Ref AsynTextractQueue
         ConvertPdfToImages: !GetAtt [ ConvertPdfToImages, Arn ]
